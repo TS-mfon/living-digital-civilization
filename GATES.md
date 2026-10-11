@@ -31,7 +31,7 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
   EVIDENCE: NOT MET. Bradbury deploy transaction `0xc69dc2f3c300581820bc9949b7a92bac3f624951a5ecf42a52a47f5a2211492f` reported `FINISHED_WITH_ERROR`; its candidate address is not usable. Base Sepolia deployment did not broadcast because `https://sepolia.base.org` DNS lookup failed. No testnet DAO/proposal is claimed as deployed.
 
 - [x] G6: GitHub repository contains complete source history and no build secrets
-  EVIDENCE: private repository https://github.com/TS-mfon/living-digital-civilization; initial source commit 203645b is pushed; `.env.build` is ignored and absent from tracked files.
+  EVIDENCE: private repository https://github.com/TS-mfon/living-digital-civilization; complete source history has been pushed; `.env.build` is ignored and absent from tracked files.
 
 - [ ] G7: deployed Vercel observatory reads the configured production backend and renders live registry/activity state
   EVIDENCE: NOT MET. `vercel build --yes --target preview` succeeds and emits the frontend plus API function, but production needs durable Neon/Postgres storage. Vercel Neon integration returned `action_required` pending acceptance of marketplace terms at https://vercel.com/gen-daves-projects/~/integrations/accept-terms/neon?source=cli; no deploy was made without durable database configuration.
