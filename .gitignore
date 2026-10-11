@@ -1,0 +1,17 @@
+node_modules
+dist
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+out
+cache
+broadcast
+__pycache__
+.venv
+.unlazy
+.genlayer
+data

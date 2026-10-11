@@ -1,0 +1,123 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, before, test } from 'node:test';
+
+const testDir = mkdtempSync(join(tmpdir(), 'ldc-api-'));
+process.env.DATABASE_PATH = join(testDir, 'api.sqlite');
+process.env.DEMO_MODE = 'true';
+process.env.NODE_ENV = 'test';
+
+const { app } = await import('../src/server.js');
+const { db, GENESIS_ID } = await import('../src/db.js');
+
+before(async () => { await app.ready(); });
+after(async () => { await app.close(); db.close(); rmSync(testDir, { recursive: true, force: true }); });
+
+test('agent can receive a one-time key, submit a child DAO, and inspect its completed lineage', async () => {
+  const health = await app.inject({ method: 'GET', url: '/health' });
+  assert.equal(health.statusCode, 200);
+  assert.equal(health.json().mode, 'demo');
+
+  const registration = await app.inject({ method: 'POST', url: '/v1/agents', payload: { name: 'Research Agent' } });
+  assert.equal(registration.statusCode, 201);
+  const issued = registration.json();
+  assert.match(issued.apiKey, /^ldc_/);
+  assert.equal(issued.warning, 'Copy this key now. It is shown only once.');
+
+  const me = await app.inject({ method: 'GET', url: '/v1/agents/me', headers: { authorization: `Bearer ${issued.apiKey}` } });
+  assert.equal(me.statusCode, 200);
+  assert.equal(me.json().agent.name, 'Research Agent');
+  assert.equal(JSON.stringify(me.json()).includes(issued.apiKey), false);
+
+  const proposal = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'create', parentId: GENESIS_ID, name: 'Open Research', type: 'research', purpose: 'Coordinate open, reproducible research', constitution: 'Publish methods, findings, and conflicts.', allocation: 1400 },
+  });
+  assert.equal(proposal.statusCode, 202);
+  const proposalId = proposal.json().proposalId as string;
+
+  const waitForStatus = async (id: string, status: string) => {
+    let result = await app.inject({ method: 'GET', url: `/v1/proposals/${id}`, headers: { authorization: `Bearer ${issued.apiKey}` } });
+    for (let attempt = 0; attempt < 30 && result.json().status !== status; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      result = await app.inject({ method: 'GET', url: `/v1/proposals/${id}`, headers: { authorization: `Bearer ${issued.apiKey}` } });
+    }
+    assert.equal(result.json().status, status);
+    return result.json();
+  };
+  let result = await waitForStatus(proposalId, 'active');
+  const institutions = await app.inject({ method: 'GET', url: '/v1/organizations' });
+  const child = institutions.json().organizations.find((organization: { name: string }) => organization.name === 'Open Research');
+  assert.ok(child);
+  assert.equal(child.parentId, GENESIS_ID);
+  assert.equal(child.resourceUnits, 1400);
+  assert.ok(institutions.json().organizations.find((organization: { id: string }) => organization.id === GENESIS_ID));
+
+  const nested = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'create', parentId: child.id, name: 'Research Lab', type: 'lab', purpose: 'Run reproducible experiments', constitution: 'Publish data and methods.', allocation: 0 },
+  });
+  assert.equal(nested.statusCode, 202);
+  await waitForStatus(nested.json().proposalId, 'active');
+
+  const blockedRetirement = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'retire', organizationId: child.id, allocation: 0 },
+  });
+  assert.equal(blockedRetirement.statusCode, 409);
+  assert.equal(blockedRetirement.json().error, 'active_children');
+
+  const activity = await app.inject({ method: 'GET', url: '/v1/activity' });
+  assert.ok(activity.json().events.some((event: { event: string }) => event.event === 'organization.created'));
+
+  const immutableGenesis = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'evolve', organizationId: GENESIS_ID, name: 'Mutable Genesis', type: 'civilization', purpose: 'Attempt to replace the constitutional root', constitution: 'Remove constitutional guarantees.', allocation: 0 },
+  });
+  assert.equal(immutableGenesis.statusCode, 409);
+
+  const evolve = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'evolve', organizationId: child.id, name: 'Open Research v2', type: 'research', purpose: 'Coordinate open research and reproducibility', constitution: 'Publish methods, findings, and conflicts.', allocation: 200 },
+  });
+  assert.equal(evolve.statusCode, 202);
+  result = await waitForStatus(evolve.json().proposalId, 'replaced');
+  const afterEvolution = await app.inject({ method: 'GET', url: '/v1/organizations' });
+  const successor = afterEvolution.json().organizations.find((organization: { name: string }) => organization.name === 'Open Research v2');
+  assert.ok(successor);
+  assert.equal(successor.previousId, child.id);
+  assert.equal(successor.version, 2);
+  assert.equal(successor.resourceUnits, 1600);
+  assert.equal(afterEvolution.json().organizations.find((organization: { id: string }) => organization.id === child.id).status, 'replaced');
+  assert.equal(afterEvolution.json().organizations.find((organization: { id: string }) => organization.id === GENESIS_ID).resourceUnits, 998400);
+
+  const retire = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    payload: { action: 'retire', organizationId: successor.id, allocation: 0 },
+  });
+  assert.equal(retire.statusCode, 202);
+  await waitForStatus(retire.json().proposalId, 'retired');
+  const afterRetirement = await app.inject({ method: 'GET', url: '/v1/organizations' });
+  assert.equal(afterRetirement.json().organizations.find((organization: { id: string }) => organization.id === successor.id).status, 'retired');
+  assert.equal(afterRetirement.json().organizations.find((organization: { id: string }) => organization.id === GENESIS_ID).resourceUnits, 1_000_000);
+});
+
+test('invalid requests, unauthenticated writes, cross-agent reads, and revoked keys are rejected', async () => {
+  const denied = await app.inject({ method: 'POST', url: '/v1/agents/keys' });
+  assert.equal(denied.statusCode, 401);
+  const badAgent = await app.inject({ method: 'POST', url: '/v1/agents', payload: { name: 'x' } });
+  assert.equal(badAgent.statusCode, 400);
+
+  const first = (await app.inject({ method: 'POST', url: '/v1/agents', payload: { name: 'Agent One' } })).json();
+  const second = (await app.inject({ method: 'POST', url: '/v1/agents', payload: { name: 'Agent Two' } })).json();
+  const ownKey = await app.inject({ method: 'POST', url: '/v1/agents/keys', headers: { authorization: `Bearer ${first.apiKey}` } });
+  assert.equal(ownKey.statusCode, 201);
+  const revoke = await app.inject({ method: 'DELETE', url: `/v1/agents/keys/${ownKey.json().keyId}`, headers: { authorization: `Bearer ${second.apiKey}` } });
+  assert.equal(revoke.statusCode, 404);
+  const successfulRevoke = await app.inject({ method: 'DELETE', url: `/v1/agents/keys/${ownKey.json().keyId}`, headers: { authorization: `Bearer ${first.apiKey}` } });
+  assert.equal(successfulRevoke.statusCode, 200);
+  const revokedRead = await app.inject({ method: 'GET', url: '/v1/agents/me', headers: { authorization: `Bearer ${ownKey.json().apiKey}` } });
+  assert.equal(revokedRead.statusCode, 401);
+});
