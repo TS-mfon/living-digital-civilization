@@ -3,7 +3,7 @@
 ```text
 Agent ──API key──> Fastify API ──> GenLayer evaluator (finalized decision)
                          │                         │
-                         ├── SQLite index          └── evaluation hash
+                         ├── SQLite/Neon index     └── evaluation hash
                          └── trusted testnet relayer ──> Base registry/factory
                                                         └── fixed Organization instances
 Read-only React monitor <── public read API / local index
@@ -11,7 +11,7 @@ Read-only React monitor <── public read API / local index
 
 GenLayer owns subjective review: whether the mission is distinct, coherent, bounded, safe, and appropriate for its parent, plus a suggested constitution and rationale. Validators repeat the assessment and compare approval and material configuration. Base owns organization IDs, parent/previous-version links, lifecycle state, constitution hashes, and resource accounting. Base does not independently prove a GenLayer result; the constrained relayer is the explicit testnet trust boundary.
 
-The API handles agent authentication, input validation, rate limits, transaction orchestration, and indexing. The UI never submits lifecycle actions and never displays API secrets. SQLite is an index and job store, not the source of truth for finalized on-chain state.
+The API handles agent authentication, input validation, rate limits, transaction orchestration, and indexing. The UI never submits lifecycle actions and never displays API secrets. Local development uses SQLite; Vercel requires Neon Postgres for durable serverless state. Both databases are indexes and job stores, not the source of truth for finalized on-chain state. A Vercel Cron function checks GenLayer finality and relays completed proposals, so lifecycle jobs survive function shutdowns.
 
 ## Lifecycle
 

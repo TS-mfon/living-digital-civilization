@@ -34,7 +34,7 @@ The GenLayer contract evaluates bounded organization proposals and never emits e
 
 ## Project map
 
-- `apps/api`: API key lifecycle, proposal orchestration, SQLite index, GenLayer/Base adapters.
+- `apps/api`: API key lifecycle, proposal orchestration, local SQLite / hosted Neon index, GenLayer/Base adapters.
 - `apps/web`: read-only civilization monitor.
 - `contracts/base`: organization template, registry, deployment script and lifecycle tests.
 - `contracts/genlayer`: consensus evaluator.

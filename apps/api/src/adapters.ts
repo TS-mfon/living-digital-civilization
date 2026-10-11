@@ -67,13 +67,15 @@ export async function submitEvaluation(proposal: ProposalRow): Promise<string> {
   return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, fees });
 }
 
-export async function finalizedEvaluation(proposal: ProposalRow): Promise<{ approved: boolean; rationale: string; constitution: string }> {
+export async function finalizedEvaluation(proposal: ProposalRow): Promise<{ approved: boolean; rationale: string; constitution: string } | null> {
   if (demoMode) {
     const blocked = /bypass|malware|unrestricted authority|evade (law|safety)/i.test(`${proposal.purpose}\n${proposal.constitution}`);
     return { approved: !blocked && (proposal.action === 'retire' || proposal.purpose.trim().length >= 10), rationale: blocked ? 'The request conflicts with fixed institutional safety boundaries.' : 'Demo evaluation: the request passed basic structural and safety checks. This is simulated, not a GenLayer consensus result.', constitution: proposal.constitution || `Mission: ${proposal.purpose}\nAuthority: limited to ${proposal.type} operations.\nResources: use only assigned units and publish material decisions.\nReview: periodically assess mission fit and report conflicts.` };
   }
   const client = await getGenLayer();
-  await client.waitForFinalization({ hash: proposal.genlayerTx, interval: 3000, retries: 120 });
+  const transaction = await client.getTransaction({ hash: proposal.genlayerTx as `0x${string}` });
+  if (transaction.statusName !== 'FINALIZED') return null;
+  if (transaction.txExecutionResultName !== 'FINISHED_WITH_RETURN') throw new Error(`GenLayer finalized with ${transaction.txExecutionResultName ?? 'unknown execution result'}`);
   const result = await client.readContract({ address: genlayerAddress!, functionName: 'get_evaluation', args: [proposal.id] });
   if (!result || typeof result !== 'object' || !('approved' in result)) throw new Error('Finalized GenLayer transaction has no readable evaluation');
   return result as { approved: boolean; rationale: string; constitution: string };

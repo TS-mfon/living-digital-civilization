@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +9,7 @@ const testDir = mkdtempSync(join(tmpdir(), 'ldc-api-'));
 process.env.DATABASE_PATH = join(testDir, 'api.sqlite');
 process.env.DEMO_MODE = 'true';
 process.env.NODE_ENV = 'test';
+process.env.CRON_SECRET = 'test-cron-secret-for-local-suite';
 
 const { app } = await import('../src/server.js');
 const { db, GENESIS_ID } = await import('../src/db.js');
@@ -102,6 +104,11 @@ test('agent can receive a one-time key, submit a child DAO, and inspect its comp
   const afterRetirement = await app.inject({ method: 'GET', url: '/v1/organizations' });
   assert.equal(afterRetirement.json().organizations.find((organization: { id: string }) => organization.id === successor.id).status, 'retired');
   assert.equal(afterRetirement.json().organizations.find((organization: { id: string }) => organization.id === GENESIS_ID).resourceUnits, 1_000_000);
+
+  const reopened = new Database(join(testDir, 'api.sqlite'), { readonly: true });
+  assert.equal((reopened.prepare('SELECT COUNT(*) as count FROM agents').get() as { count: number }).count, 1);
+  assert.equal((reopened.prepare('SELECT COUNT(*) as count FROM proposals').get() as { count: number }).count, 4);
+  reopened.close();
 });
 
 test('invalid requests, unauthenticated writes, cross-agent reads, and revoked keys are rejected', async () => {
@@ -120,4 +127,12 @@ test('invalid requests, unauthenticated writes, cross-agent reads, and revoked k
   assert.equal(successfulRevoke.statusCode, 200);
   const revokedRead = await app.inject({ method: 'GET', url: '/v1/agents/me', headers: { authorization: `Bearer ${ownKey.json().apiKey}` } });
   assert.equal(revokedRead.statusCode, 401);
+});
+
+test('serverless lifecycle worker requires its private cron secret', async () => {
+  const denied = await app.inject({ method: 'GET', url: '/v1/internal/process' });
+  assert.equal(denied.statusCode, 401);
+  const authorized = await app.inject({ method: 'GET', url: '/v1/internal/process', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+  assert.equal(authorized.statusCode, 200);
+  assert.equal(authorized.json().processed, 0);
 });

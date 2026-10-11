@@ -4,7 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { keccak256, stringToHex } from 'viem';
-import { createProposal, db, GENESIS_ID, getActivity, getOrganization, getOrganizations, getProposal, insertOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
+import { activeApiKeyCount, createAgent, createProposal, db, GENESIS_ID, getActivity, getOrganization, getOrganizations, getProposal, insertOrganization, pendingEvaluations, proposalsForOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
 import { adapterHealth, familyHash, finalizedEvaluation, isDemoMode, relayToBase, submitEvaluation } from './adapters.js';
 import { authenticate, issueKey, revokeKey, type Agent } from './security.js';
 import type { OrganizationRow, ProposalInput, ProposalRow } from './domain.js';
@@ -34,8 +34,8 @@ function bearer(request: FastifyRequest): string | undefined {
   if (!value?.startsWith('Bearer ')) return undefined;
   return value.slice(7).trim();
 }
-function requireAgent(request: FastifyRequest, reply: FastifyReply): Agent | null {
-  const agent = authenticate(bearer(request));
+async function requireAgent(request: FastifyRequest, reply: FastifyReply): Promise<Agent | null> {
+  const agent = await authenticate(bearer(request));
   if (!agent) { void reply.code(401).send({ error: 'unauthorized', message: 'Use a valid agent API key.' }); return null; }
   return agent;
 }
@@ -44,30 +44,31 @@ function serializeProposal(row: ProposalRow) {
 }
 function shortError(error: unknown) { return error instanceof Error ? error.message.slice(0, 500) : 'Unexpected lifecycle error'; }
 
-async function completeLifecycle(proposalId: string): Promise<void> {
-  let proposal = getProposal(proposalId);
-  if (!proposal) return;
+async function completeLifecycle(proposalId: string): Promise<boolean> {
+  let proposal = await getProposal(proposalId);
+  if (!proposal) return true;
   try {
     const evaluation = await finalizedEvaluation(proposal);
-    proposal = getProposal(proposalId)!;
-    updateProposal(proposalId, { status: evaluation.approved ? 'approved' : 'rejected', evaluation: JSON.stringify(evaluation), error: null });
-    recordActivity(evaluation.approved ? 'evaluation.approved' : 'evaluation.rejected', { rationale: evaluation.rationale, demo: isDemoMode() }, proposalId, proposal.organizationId);
-    if (!evaluation.approved) return;
-    updateProposal(proposalId, { status: 'relaying' });
-    proposal = getProposal(proposalId)!;
+    if (!evaluation) return false;
+    proposal = (await getProposal(proposalId))!;
+    await updateProposal(proposalId, { status: evaluation.approved ? 'approved' : 'rejected', evaluation: JSON.stringify(evaluation), error: null });
+    await recordActivity(evaluation.approved ? 'evaluation.approved' : 'evaluation.rejected', { rationale: evaluation.rationale, demo: isDemoMode() }, proposalId, proposal.organizationId);
+    if (!evaluation.approved) return true;
+    await updateProposal(proposalId, { status: 'relaying' });
+    proposal = (await getProposal(proposalId))!;
     const base = await relayToBase(proposal, evaluation);
-    updateProposal(proposalId, { baseTx: base.txHash });
+    await updateProposal(proposalId, { baseTx: base.txHash });
     const createdAt = new Date().toISOString();
     if (proposal.action === 'create' || proposal.action === 'evolve') {
-      const parentId = proposal.action === 'create' ? proposal.parentId : getOrganization(proposal.organizationId!)?.parentId ?? null;
-      const predecessor = proposal.action === 'evolve' ? getOrganization(proposal.organizationId!) : undefined;
-      const parent = parentId ? getOrganization(parentId) : undefined;
+      const parentId = proposal.action === 'create' ? proposal.parentId : (await getOrganization(proposal.organizationId!))?.parentId ?? null;
+      const predecessor = proposal.action === 'evolve' ? await getOrganization(proposal.organizationId!) : undefined;
+      const parent = parentId ? await getOrganization(parentId) : undefined;
       const id = base.id ?? keccak256(stringToHex(`${proposal.action}:${proposal.id}`));
       const familyId = base.familyId ?? predecessor?.familyId ?? familyHash(id as `0x${string}`);
-      if (proposal.action === 'create' && parent) setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
+      if (proposal.action === 'create' && parent) await setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
       if (proposal.action === 'evolve' && predecessor) {
-        setOrganizationStatus(predecessor.id, 'replaced');
-        if (parent) setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
+        await setOrganizationStatus(predecessor.id, 'replaced');
+        if (parent) await setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
       }
       const org: OrganizationRow = {
         id, familyId, parentId, previousId: predecessor?.id ?? null,
@@ -77,61 +78,79 @@ async function completeLifecycle(proposalId: string): Promise<void> {
         resourceUnits: base.resourceUnits ?? (proposal.action === 'create' ? proposal.allocation : (predecessor?.resourceUnits ?? 0) + proposal.allocation),
         status: 'active', address: base.instance ?? null, createdAt,
       };
-      insertOrganization(org);
-      updateProposal(proposalId, { status: proposal.action === 'evolve' ? 'replaced' : 'active' });
-      recordActivity(proposal.action === 'evolve' ? 'organization.evolved' : 'organization.created', { organization: org, baseTx: base.txHash, demo: isDemoMode() }, proposalId, org.id);
+      await insertOrganization(org);
+      await updateProposal(proposalId, { status: proposal.action === 'evolve' ? 'replaced' : 'active' });
+      await recordActivity(proposal.action === 'evolve' ? 'organization.evolved' : 'organization.created', { organization: org, baseTx: base.txHash, demo: isDemoMode() }, proposalId, org.id);
     } else {
-      const org = getOrganization(proposal.organizationId!);
-      if (org?.parentId) setResourceUnits(org.parentId, (getOrganization(org.parentId)?.resourceUnits ?? 0) + org.resourceUnits);
-      setOrganizationStatus(proposal.organizationId!, 'retired', 0);
-      updateProposal(proposalId, { status: 'retired' });
-      recordActivity('organization.retired', { organizationId: proposal.organizationId, baseTx: base.txHash, demo: isDemoMode() }, proposalId, proposal.organizationId);
+      const org = await getOrganization(proposal.organizationId!);
+      if (org?.parentId) await setResourceUnits(org.parentId, ((await getOrganization(org.parentId))?.resourceUnits ?? 0) + org.resourceUnits);
+      await setOrganizationStatus(proposal.organizationId!, 'retired', 0);
+      await updateProposal(proposalId, { status: 'retired' });
+      await recordActivity('organization.retired', { organizationId: proposal.organizationId, baseTx: base.txHash, demo: isDemoMode() }, proposalId, proposal.organizationId);
     }
+    return true;
   } catch (error) {
-    updateProposal(proposalId, { status: 'failed', error: shortError(error) });
-    recordActivity('lifecycle.failed', { error: shortError(error) }, proposalId, proposal.organizationId);
+    await updateProposal(proposalId, { status: 'failed', error: shortError(error) });
+    await recordActivity('lifecycle.failed', { error: shortError(error) }, proposalId, proposal.organizationId);
     app.log.error({ err: error, proposalId }, 'Institution lifecycle failed');
+    return true;
   }
 }
 
+function scheduleLocalLifecycle(proposalId: string, delay = 180): void {
+  if (process.env.VERCEL) return;
+  setTimeout(async () => {
+    const complete = await completeLifecycle(proposalId);
+    if (!complete) scheduleLocalLifecycle(proposalId, 5_000);
+  }, delay);
+}
+
 app.get('/health', async () => ({ ok: true, service: 'living-digital-civilization-api', ...await adapterHealth() }));
+app.get('/v1/internal/process', async (request, reply) => {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || bearer(request) !== secret) return reply.code(401).send({ error: 'unauthorized' });
+  const pending = await pendingEvaluations(10);
+  let completed = 0;
+  for (const proposal of pending) if (await completeLifecycle(proposal.id)) completed += 1;
+  return { processed: pending.length, completed, remaining: pending.length - completed };
+});
 app.post('/v1/agents', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
   const parsed = z.object({ name: nameSchema }).safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
   const agentId = randomUUID();
-  db.prepare('INSERT INTO agents(id,name,created_at) VALUES(?,?,?)').run(agentId, parsed.data.name, new Date().toISOString());
-  const key = issueKey(agentId);
-  recordActivity('agent.registered', { agentId, name: parsed.data.name });
+  await createAgent(agentId, parsed.data.name, new Date().toISOString());
+  const key = await issueKey(agentId);
+  await recordActivity('agent.registered', { agentId, name: parsed.data.name });
   return reply.code(201).send({ agent: { id: agentId, name: parsed.data.name }, keyId: key.id, apiKey: key.secret, warning: 'Copy this key now. It is shown only once.' });
 });
 
 app.get('/v1/agents/me', async (request, reply) => {
-  const agent = requireAgent(request, reply); if (!agent) return;
-  const keyCount = (db.prepare('SELECT COUNT(*) as count FROM api_keys WHERE agent_id=? AND revoked_at IS NULL').get(agent.id) as { count: number }).count;
+  const agent = await requireAgent(request, reply); if (!agent) return;
+  const keyCount = await activeApiKeyCount(agent.id);
   return { agent, activeKeyCount: keyCount };
 });
 app.post('/v1/agents/keys', async (request, reply) => {
-  const agent = requireAgent(request, reply); if (!agent) return;
-  const key = issueKey(agent.id);
+  const agent = await requireAgent(request, reply); if (!agent) return;
+  const key = await issueKey(agent.id);
   return reply.code(201).send({ keyId: key.id, apiKey: key.secret, warning: 'Copy this key now. It is shown only once.' });
 });
 app.delete<{ Params: { keyId: string } }>('/v1/agents/keys/:keyId', async (request, reply) => {
-  const agent = requireAgent(request, reply); if (!agent) return;
-  if (!revokeKey(agent.id, request.params.keyId)) return reply.code(404).send({ error: 'not_found', message: 'Active key not found for this agent.' });
+  const agent = await requireAgent(request, reply); if (!agent) return;
+  if (!await revokeKey(agent.id, request.params.keyId)) return reply.code(404).send({ error: 'not_found', message: 'Active key not found for this agent.' });
   return { revoked: true, keyId: request.params.keyId };
 });
 
 app.post('/v1/proposals', async (request, reply) => {
-  const agent = requireAgent(request, reply); if (!agent) return;
+  const agent = await requireAgent(request, reply); if (!agent) return;
   const parsed = proposalSchema.safeParse(request.body);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
   const input = parsed.data as ProposalInput;
-  const source = input.action === 'create' ? getOrganization(input.parentId!) : getOrganization(input.organizationId!);
+  const source = input.action === 'create' ? await getOrganization(input.parentId!) : await getOrganization(input.organizationId!);
   if (!source || source.status !== 'active') return reply.code(409).send({ error: 'invalid_organization', message: 'The parent or target organization must exist and be active.' });
   if (input.action === 'evolve' && input.organizationId === GENESIS_ID) return reply.code(409).send({ error: 'immutable_genesis', message: 'The Genesis organization cannot be evolved.' });
-  if (input.action === 'retire' && getOrganizations().some((org) => org.parentId === source.id && org.status === 'active')) return reply.code(409).send({ error: 'active_children', message: 'Retire or evolve active child institutions before retiring their parent.' });
+  if (input.action === 'retire' && (await getOrganizations()).some((org) => org.parentId === source.id && org.status === 'active')) return reply.code(409).send({ error: 'active_children', message: 'Retire or evolve active child institutions before retiring their parent.' });
   if (input.action === 'create' && input.allocation! > source.resourceUnits) return reply.code(409).send({ error: 'insufficient_resources', available: source.resourceUnits });
-  if (input.action === 'evolve' && input.allocation! > (getOrganization(source.parentId ?? '')?.resourceUnits ?? 0) + source.resourceUnits) return reply.code(409).send({ error: 'insufficient_resources', message: 'The parent and current version do not have enough resource units.' });
+  if (input.action === 'evolve' && input.allocation! > ((await getOrganization(source.parentId ?? ''))?.resourceUnits ?? 0) + source.resourceUnits) return reply.code(409).send({ error: 'insufficient_resources', message: 'The parent and current version do not have enough resource units.' });
   if (input.action === 'retire' && input.organizationId === GENESIS_ID) return reply.code(409).send({ error: 'immutable_genesis', message: 'The Genesis organization cannot be retired.' });
   const target = input.action === 'retire' ? source : undefined;
   const row: ProposalRow = {
@@ -143,39 +162,38 @@ app.post('/v1/proposals', async (request, reply) => {
     allocation: input.allocation ?? 0, status: 'submitted', evaluation: null, genlayerTx: null, baseTx: null, error: null,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
-  createProposal(row);
-  recordActivity('proposal.submitted', { action: row.action, agentId: agent.id }, row.id, row.organizationId);
+  await createProposal(row);
+  await recordActivity('proposal.submitted', { action: row.action, agentId: agent.id }, row.id, row.organizationId);
   try {
     const txHash = await submitEvaluation(row);
-    updateProposal(row.id, { status: 'evaluating', genlayerTx: txHash });
-    recordActivity('evaluation.submitted', { txHash, demo: isDemoMode() }, row.id, row.organizationId);
-    if (isDemoMode()) setTimeout(() => void completeLifecycle(row.id), 180);
-    else setTimeout(() => void completeLifecycle(row.id), 0);
+    await updateProposal(row.id, { status: 'evaluating', genlayerTx: txHash });
+    await recordActivity('evaluation.submitted', { txHash, demo: isDemoMode() }, row.id, row.organizationId);
+    scheduleLocalLifecycle(row.id, isDemoMode() ? 180 : 0);
   } catch (error) {
-    updateProposal(row.id, { status: 'failed', error: shortError(error) });
+    await updateProposal(row.id, { status: 'failed', error: shortError(error) });
     return reply.code(503).send({ proposalId: row.id, status: 'failed', error: shortError(error) });
   }
-  return reply.code(202).send({ proposalId: row.id, status: 'evaluating', genlayerTx: getProposal(row.id)?.genlayerTx, demo: isDemoMode() });
+  return reply.code(202).send({ proposalId: row.id, status: 'evaluating', genlayerTx: (await getProposal(row.id))?.genlayerTx, demo: isDemoMode() });
 });
 
 app.get<{ Params: { id: string } }>('/v1/proposals/:id', async (request, reply) => {
-  const agent = requireAgent(request, reply); if (!agent) return;
-  const proposal = getProposal(request.params.id);
+  const agent = await requireAgent(request, reply); if (!agent) return;
+  const proposal = await getProposal(request.params.id);
   if (!proposal || proposal.agentId !== agent.id) return reply.code(404).send({ error: 'not_found' });
   return serializeProposal(proposal);
 });
-app.get('/v1/organizations', async () => ({ organizations: getOrganizations(), demo: isDemoMode() }));
+app.get('/v1/organizations', async () => ({ organizations: await getOrganizations(), demo: isDemoMode() }));
 app.get<{ Params: { id: string } }>('/v1/organizations/:id', async (request, reply) => {
-  const org = getOrganization(request.params.id);
+  const org = await getOrganization(request.params.id);
   if (!org) return reply.code(404).send({ error: 'not_found' });
-  const children = getOrganizations().filter((item) => item.parentId === org.id);
-  const latestProposal = db.prepare('SELECT id,action,status,evaluation,genlayer_tx as genlayerTx,base_tx as baseTx,created_at as createdAt FROM proposals WHERE organization_id=? OR parent_id=? ORDER BY created_at DESC LIMIT 10').all(org.id, org.id) as Array<Record<string, unknown>>;
+  const children = (await getOrganizations()).filter((item) => item.parentId === org.id);
+  const latestProposal = await proposalsForOrganization(org.id);
   return { organization: org, children, recentProposals: latestProposal.map((item) => ({ ...item, evaluation: item.evaluation ? JSON.parse(item.evaluation as string) : null })), demo: isDemoMode() };
 });
 app.get<{ Params: { id: string } }>('/v1/lineage/:id', async (request, reply) => {
-  const focus = getOrganization(request.params.id);
+  const focus = await getOrganization(request.params.id);
   if (!focus) return reply.code(404).send({ error: 'not_found' });
-  const all = getOrganizations();
+  const all = await getOrganizations();
   const ancestors: OrganizationRow[] = [];
   let parentId = focus.parentId;
   while (parentId) { const parent = all.find((item) => item.id === parentId); if (!parent) break; ancestors.unshift(parent); parentId = parent.parentId; }
@@ -183,7 +201,7 @@ app.get<{ Params: { id: string } }>('/v1/lineage/:id', async (request, reply) =>
   const children = all.filter((item) => item.parentId === focus.id);
   return { focus, ancestors, familyVersions: family, children, demo: isDemoMode() };
 });
-app.get('/v1/activity', async () => ({ events: getActivity(60), demo: isDemoMode() }));
+app.get('/v1/activity', async () => ({ events: await getActivity(60), demo: isDemoMode() }));
 
 export async function startServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 8787);

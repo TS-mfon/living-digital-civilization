@@ -22,6 +22,20 @@ node scripts/deploy-genlayer.mjs
 
 The helper reads the same `PRIVATE_KEY` value from `LDC_BUILD_ENV`, imports it as a local encrypted CLI account, and inspects the deployment receipt. Record the contract address only after the receipt reports successful execution; `ACCEPTED` or `FINALIZED` alone does not prove success. Set `GENLAYER_EVALUATOR_ADDRESS` and `GENLAYER_RELAYER_PRIVATE_KEY` in the API runtime.
 
+## Vercel frontend and API
+
+The repository root is the Vercel project root. `vercel.json` builds the read-only Vite observatory, routes `/v1/*` and `/health` to the Fastify Function, and schedules the internal lifecycle worker once per minute. Local mode uses SQLite. Vercel refuses to start the API without `DATABASE_URL`; connect a Neon Postgres resource before deploying. The first API startup creates the required tables and the Genesis record.
+
+Set these Vercel environment variables for production and preview as needed:
+
+- `DATABASE_URL`: Neon connection URL provided by the Vercel integration.
+- `API_KEY_PEPPER`: random secret with at least 32 characters.
+- `CRON_SECRET`: separate random secret for the Vercel Cron request.
+- `DEMO_MODE`: `true` for a simulated launch; use `false` only after both testnet contracts are deployed and the other environment values are set.
+- `BASE_RPC_URL`, `BASE_REGISTRY_ADDRESS`, `BASE_RELAYER_PRIVATE_KEY`, `GENLAYER_EVALUATOR_ADDRESS`, `GENLAYER_RELAYER_PRIVATE_KEY`: testnet connection values. Keep signer keys in server environment variables only.
+
+Deploy with `vercel --prod` from the repository root. Then verify `/health`, agent registration, proposal creation, cron completion, and dashboard updates. The free Neon integration install requires marketplace terms acceptance in the Vercel account.
+
 ## Go-live checklist
 
 - Verify Base chain ID is 84532 and the GenLayer CLI reports Bradbury.
