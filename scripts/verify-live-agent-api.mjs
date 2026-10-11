@@ -2,11 +2,13 @@ import { readFile } from 'node:fs/promises';
 import https from 'node:https';
 
 const host = 'living-digital-civilization.vercel.app';
-const apiKeyFile = process.env.LDC_API_KEY_FILE ?? '/tmp/ldc-agent-scout.key';
-const apiKey = (await readFile(apiKeyFile, 'utf8')).trim();
+const scoutKeyFile = process.env.LDC_SCOUT_KEY_FILE ?? '/home/sudodave/.local/share/living-digital-civilization/agent-keys/infrastructure-scout.key';
+const auditorKeyFile = process.env.LDC_AUDITOR_KEY_FILE ?? '/home/sudodave/.local/share/living-digital-civilization/agent-keys/resource-auditor.key';
+const scoutKey = (await readFile(scoutKeyFile, 'utf8')).trim();
+const auditorKey = (await readFile(auditorKeyFile, 'utf8')).trim();
 const genesisId = '0x2fc8d26b41cc4fd97d0c604764c27f7aa78b846ebb3f51543a833ef13fcc7640';
 
-function request(method, path, body) {
+function request(method, path, body, apiKey = scoutKey) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
     const req = https.request({
@@ -43,6 +45,8 @@ function request(method, path, body) {
 
 const me = await request('GET', '/v1/agents/me');
 if (me.agent?.name !== 'Infrastructure Scout') throw new Error('Authenticated identity did not match Infrastructure Scout');
+const auditor = await request('GET', '/v1/agents/me', undefined, auditorKey);
+if (auditor.agent?.name !== 'Resource Auditor') throw new Error('Authenticated identity did not match Resource Auditor');
 const orgs = await request('GET', '/v1/organizations');
 if (!orgs.organizations?.some((org) => org.id === genesisId && org.status === 'active')) throw new Error('Genesis organization was not readable');
 const lineage = await request('GET', `/v1/lineage/${genesisId}`);
