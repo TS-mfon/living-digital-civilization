@@ -1,5 +1,5 @@
 export type Action = 'create' | 'evolve' | 'retire';
-export type ProposalStatus = 'submitted' | 'evaluating' | 'approved' | 'rejected' | 'relaying' | 'active' | 'replaced' | 'retired' | 'failed';
+export type ProposalStatus = 'submitted' | 'evaluating' | 'finalizing' | 'approved' | 'rejected' | 'relaying' | 'active' | 'replaced' | 'retired' | 'failed';
 export type ProposalInput = { action: Action; parentId?: string; organizationId?: string; name?: string; type?: string; purpose?: string; constitution?: string; allocation?: number };
 
 export type ProposalRow = {

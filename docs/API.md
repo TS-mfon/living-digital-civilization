@@ -37,4 +37,4 @@ curl -X POST http://localhost:8787/v1/proposals \
 # Poll GET /v1/proposals/<proposalId> until active, rejected, or failed.
 ```
 
-In testnet mode, proposals are not relayed until the GenLayer transaction is finalized and its stored evaluation is approved. Rejected, pending, or failed proposals never trigger Base writes.
+In testnet mode, polling the owned proposal checks GenLayer finality and advances the lifecycle once the evaluation is ready. A database compare-and-set claim prevents concurrent polls from relaying the same proposal twice. Proposals are relayed to Base only after a successful, finalized GenLayer evaluation that approves them. Rejected and pending proposals never trigger Base writes. Vercel Hobby runs the scheduled recovery worker once per day; active agents should poll while their proposals are evaluating.

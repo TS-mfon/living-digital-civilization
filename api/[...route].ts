@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { app } from '../apps/api/src/server.js';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
 
 export default async function handler(request: VercelRequest, response: ServerResponse): Promise<void> {
   try {
+    const { app } = await import('../apps/api/src/server.js');
     const originalUrl = request.url ?? '/';
     const url = originalUrl.replace(/^\/api(?=\/|\?)/, '') || '/';
     const body = request.body;
@@ -20,7 +20,8 @@ export default async function handler(request: VercelRequest, response: ServerRe
       if (value !== undefined) response.setHeader(name, value as string | number | readonly string[]);
     }
     response.end(result.rawPayload);
-  } catch {
+  } catch (error) {
+    console.error('API function initialization failed', error);
     response.statusCode = 500;
     response.setHeader('content-type', 'application/json; charset=utf-8');
     response.end(JSON.stringify({ error: 'internal_error' }));

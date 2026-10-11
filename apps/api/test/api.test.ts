@@ -13,6 +13,7 @@ process.env.CRON_SECRET = 'test-cron-secret-for-local-suite';
 
 const { app } = await import('../src/server.js');
 const { db, GENESIS_ID } = await import('../src/db.js');
+process.env.VERCEL = '1';
 
 before(async () => { await app.ready(); });
 after(async () => { await app.close(); db.close(); rmSync(testDir, { recursive: true, force: true }); });
@@ -133,6 +134,6 @@ test('serverless lifecycle worker requires its private cron secret', async () =>
   const denied = await app.inject({ method: 'GET', url: '/v1/internal/process' });
   assert.equal(denied.statusCode, 401);
   const authorized = await app.inject({ method: 'GET', url: '/v1/internal/process', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
-  assert.equal(authorized.statusCode, 200);
+  assert.equal(authorized.statusCode, 200, authorized.body);
   assert.equal(authorized.json().processed, 0);
 });

@@ -6,21 +6,23 @@ From the repository root, deploy using the key in `/home/sudodave/.env.build`:
 
 ```sh
 forge build --root contracts/base
-node scripts/deploy-base.mjs
+./scripts/deploy-base.sh
 ```
 
-The deployer becomes registry owner and initial relayer. Record the printed registry address and use the same dedicated testnet key as `BASE_RELAYER_PRIVATE_KEY` in the API. The helper reads only `PRIVATE_KEY` from `LDC_BUILD_ENV` (default `/home/sudodave/.env.build`) and passes it to Foundry through the child process environment.
+The deployer becomes registry owner and initial relayer. Record the printed registry address and use the same dedicated testnet key as `BASE_RELAYER_PRIVATE_KEY` in the API. The helper reads only `PRIVATE_KEY` from `LDC_BUILD_ENV` (default `/home/sudodave/.env.build`) and signs locally. It submits to `https://base-sepolia-rpc.publicnode.com` by default; override `BASE_RPC_URL` when another provider is available. `BASE_RPC_IP` can pin a resolved endpoint IP when local DNS is unavailable.
 
-## GenLayer Bradbury
+Run the public testnet lifecycle check with `./scripts/deploy-base.sh smoke`; it creates a child, evolves it, retires the successor, then verifies lineage and resource return against the deployed registry.
+
+## GenLayer StudioNet
 
 Select the built-in network, inspect it, then deploy:
 
 ```sh
-genlayer network set testnet-bradbury && genlayer network info
-node scripts/deploy-genlayer.mjs
+genlayer network info
+./scripts/deploy-genlayer.sh
 ```
 
-The helper reads the same `PRIVATE_KEY` value from `LDC_BUILD_ENV`, imports it as a local encrypted CLI account, and inspects the deployment receipt. Record the contract address only after the receipt reports successful execution; `ACCEPTED` or `FINALIZED` alone does not prove success. Set `GENLAYER_EVALUATOR_ADDRESS` and `GENLAYER_RELAYER_PRIVATE_KEY` in the API runtime.
+The helper selects `studionet`, uses the locally encrypted `ldc-studionet-deployer` CLI account, and checks the receipt for successful execution. It does not read or print `.env.build`. Record the contract address only after the receipt reports successful execution. Set `GENLAYER_EVALUATOR_ADDRESS` and `GENLAYER_RELAYER_PRIVATE_KEY` in the API runtime.
 
 ## Vercel frontend and API
 
@@ -32,13 +34,13 @@ Set these Vercel environment variables for production and preview as needed:
 - `API_KEY_PEPPER`: random secret with at least 32 characters.
 - `CRON_SECRET`: separate random secret for the Vercel Cron request.
 - `DEMO_MODE`: `true` for a simulated launch; use `false` only after both testnet contracts are deployed and the other environment values are set.
-- `BASE_RPC_URL`, `BASE_REGISTRY_ADDRESS`, `BASE_RELAYER_PRIVATE_KEY`, `GENLAYER_EVALUATOR_ADDRESS`, `GENLAYER_RELAYER_PRIVATE_KEY`: testnet connection values. Keep signer keys in server environment variables only.
+- `BASE_RPC_URL`, `BASE_REGISTRY_ADDRESS`, `BASE_RELAYER_PRIVATE_KEY`, `GENLAYER_EVALUATOR_ADDRESS`, `GENLAYER_RELAYER_PRIVATE_KEY`, `GENLAYER_NETWORK=studionet`: testnet/StudioNet connection values. Keep signer keys in server environment variables only.
 
 Deploy with `vercel --prod` from the repository root. Then verify `/health`, agent registration, proposal creation, cron completion, and dashboard updates. The free Neon integration install requires marketplace terms acceptance in the Vercel account.
 
 ## Go-live checklist
 
-- Verify Base chain ID is 84532 and the GenLayer CLI reports Bradbury.
+- Verify Base chain ID is 84532 and the GenLayer CLI reports StudioNet (chain ID 61999).
 - Verify deployment addresses from receipts; never rely only on a submitted hash.
 - Confirm API environment values are private and point to testnet deployments.
 - Keep `DEMO_MODE=false` only when both adapters are configured.

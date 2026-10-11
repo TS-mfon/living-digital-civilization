@@ -106,7 +106,13 @@ export async function getProposal(id: string): Promise<ProposalRow | undefined> 
   return first<ProposalRow>(`SELECT ${proposalColumns} FROM proposals WHERE id=$1`, [id]);
 }
 export async function pendingEvaluations(limit = 10): Promise<ProposalRow[]> {
-  return all<ProposalRow>(`SELECT ${proposalColumns} FROM proposals WHERE status='evaluating' AND genlayer_tx IS NOT NULL ORDER BY created_at ASC LIMIT $1`, [limit]);
+  const staleBefore = new Date(Date.now() - 120_000).toISOString();
+  return all<ProposalRow>(`SELECT ${proposalColumns} FROM proposals WHERE (status='evaluating' OR (status='finalizing' AND updated_at<$1)) AND genlayer_tx IS NOT NULL ORDER BY created_at ASC LIMIT $2`, [staleBefore, limit]);
+}
+export async function claimProposalLifecycle(id: string): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - 120_000).toISOString();
+  const result = await execute(`UPDATE proposals SET status='finalizing',updated_at=$1 WHERE id=$2 AND (status='evaluating' OR (status='finalizing' AND updated_at<$3))`, [now(), id, staleBefore]);
+  return result.changes === 1;
 }
 export async function getOrganizations(): Promise<OrganizationRow[]> {
   return all<OrganizationRow>(`SELECT ${organizationColumns} FROM organizations ORDER BY created_at DESC`);

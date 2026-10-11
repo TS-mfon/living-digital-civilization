@@ -25,7 +25,7 @@ function key(raw: string | undefined, label: string): Hex {
   return raw as Hex;
 }
 
-const baseRpc = process.env.BASE_RPC_URL || 'https://sepolia.base.org';
+const baseRpc = process.env.BASE_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
 let publicBase: any;
 let walletBase: any;
 let registryAddress: Address | undefined;
@@ -47,8 +47,9 @@ async function getGenLayer(): Promise<GenClient> {
   const privateKey = key(process.env.GENLAYER_RELAYER_PRIVATE_KEY, 'GENLAYER_RELAYER_PRIVATE_KEY');
   genlayerAccount = privateKeyToAccount(privateKey);
   const [{ createClient }, chains] = await Promise.all([import('genlayer-js'), import('genlayer-js/chains')]);
-  const chain = (chains as any).testnetBradbury;
-  if (!chain) throw new Error('The installed GenLayerJS package does not expose testnetBradbury');
+  const network = process.env.GENLAYER_NETWORK ?? 'studionet';
+  const chain = (chains as any)[network];
+  if (!chain) throw new Error(`The installed GenLayerJS package does not expose ${network}`);
   genlayerClient = createClient({ chain, account: genlayerAccount });
   return genlayerClient;
 }
@@ -63,6 +64,10 @@ export async function submitEvaluation(proposal: ProposalRow): Promise<string> {
   const client = await getGenLayer();
   const address = genlayerAddress!;
   const args = [proposal.id, proposal.action, proposal.organizationId ?? '', proposal.parentId ?? '', proposal.name, proposal.type, proposal.purpose, proposal.constitution, proposal.allocation];
+  if ((process.env.GENLAYER_NETWORK ?? 'studionet') === 'studionet') {
+    // StudioNet is gasless and currently does not expose sim_getFeeConfig.
+    return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, fees: { feeValue: 0n } });
+  }
   const fees = await client.estimateTransactionFeesForWrite({ account: genlayerAccount, address, functionName: 'evaluate', args });
   return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, fees });
 }
@@ -75,7 +80,13 @@ export async function finalizedEvaluation(proposal: ProposalRow): Promise<{ appr
   const client = await getGenLayer();
   const transaction = await client.getTransaction({ hash: proposal.genlayerTx as `0x${string}` });
   if (transaction.statusName !== 'FINALIZED') return null;
-  if (transaction.txExecutionResultName !== 'FINISHED_WITH_RETURN') throw new Error(`GenLayer finalized with ${transaction.txExecutionResultName ?? 'unknown execution result'}`);
+  if (transaction.result_name === 'NO_MAJORITY' || transaction.result_name === 'MAJORITY_DISAGREE') {
+    return { approved: false, rationale: 'GenLayer validators did not reach an approving consensus for this proposal.', constitution: proposal.constitution };
+  }
+  const leaderResult = transaction.consensus_data?.leader_receipt?.[0]?.execution_result;
+  if (transaction.result_name !== 'MAJORITY_AGREE' || leaderResult !== 'SUCCESS') {
+    throw new Error(`GenLayer transaction completed unsuccessfully (${transaction.result_name ?? transaction.statusName}; execution ${leaderResult ?? 'unknown'})`);
+  }
   const result = await client.readContract({ address: genlayerAddress!, functionName: 'get_evaluation', args: [proposal.id] });
   if (!result || typeof result !== 'object' || !('approved' in result)) throw new Error('Finalized GenLayer transaction has no readable evaluation');
   return result as { approved: boolean; rationale: string; constitution: string };

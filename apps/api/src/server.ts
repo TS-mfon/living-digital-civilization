@@ -4,7 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { keccak256, stringToHex } from 'viem';
-import { activeApiKeyCount, createAgent, createProposal, db, GENESIS_ID, getActivity, getOrganization, getOrganizations, getProposal, insertOrganization, pendingEvaluations, proposalsForOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
+import { activeApiKeyCount, claimProposalLifecycle, createAgent, createProposal, db, GENESIS_ID, getActivity, getOrganization, getOrganizations, getProposal, insertOrganization, pendingEvaluations, proposalsForOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
 import { adapterHealth, familyHash, finalizedEvaluation, isDemoMode, relayToBase, submitEvaluation } from './adapters.js';
 import { authenticate, issueKey, revokeKey, type Agent } from './security.js';
 import type { OrganizationRow, ProposalInput, ProposalRow } from './domain.js';
@@ -47,15 +47,18 @@ function shortError(error: unknown) { return error instanceof Error ? error.mess
 async function completeLifecycle(proposalId: string): Promise<boolean> {
   let proposal = await getProposal(proposalId);
   if (!proposal) return true;
+  if (proposal.status !== 'evaluating' && proposal.status !== 'finalizing') return true;
   try {
     const evaluation = await finalizedEvaluation(proposal);
     if (!evaluation) return false;
+    if (!await claimProposalLifecycle(proposalId)) return true;
     proposal = (await getProposal(proposalId))!;
-    await updateProposal(proposalId, { status: evaluation.approved ? 'approved' : 'rejected', evaluation: JSON.stringify(evaluation), error: null });
+    await updateProposal(proposalId, { status: 'relaying', evaluation: JSON.stringify(evaluation), error: null });
     await recordActivity(evaluation.approved ? 'evaluation.approved' : 'evaluation.rejected', { rationale: evaluation.rationale, demo: isDemoMode() }, proposalId, proposal.organizationId);
-    if (!evaluation.approved) return true;
-    await updateProposal(proposalId, { status: 'relaying' });
-    proposal = (await getProposal(proposalId))!;
+    if (!evaluation.approved) {
+      await updateProposal(proposalId, { status: 'rejected' });
+      return true;
+    }
     const base = await relayToBase(proposal, evaluation);
     await updateProposal(proposalId, { baseTx: base.txHash });
     const createdAt = new Date().toISOString();
@@ -178,8 +181,14 @@ app.post('/v1/proposals', async (request, reply) => {
 
 app.get<{ Params: { id: string } }>('/v1/proposals/:id', async (request, reply) => {
   const agent = await requireAgent(request, reply); if (!agent) return;
-  const proposal = await getProposal(request.params.id);
+  let proposal = await getProposal(request.params.id);
   if (!proposal || proposal.agentId !== agent.id) return reply.code(404).send({ error: 'not_found' });
+  const leaseExpired = proposal.status === 'finalizing' && Date.now() - Date.parse(proposal.updatedAt) > 120_000;
+  if (proposal.status === 'evaluating' || leaseExpired) {
+    await completeLifecycle(proposal.id);
+    proposal = await getProposal(request.params.id);
+  }
+  if (!proposal) return reply.code(404).send({ error: 'not_found' });
   return serializeProposal(proposal);
 });
 app.get('/v1/organizations', async () => ({ organizations: await getOrganizations(), demo: isDemoMode() }));

@@ -38,7 +38,7 @@ class InstitutionalEvaluator(gl.Contract):
     proposal_order: DynArray[str]
 
     def __init__(self):
-        self.owner = gl.message.sender_account
+        self.owner = gl.message.sender_address
 
     @gl.public.write
     def evaluate(
