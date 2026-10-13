@@ -72,7 +72,7 @@ ABANDON: G14 The current execution environment blocks the outbound sockets requi
   EVIDENCE: automatic-evidence=v1; definition-sha256=1ab7735284fa88775285b3058553a55e9388c292068bfe8ccfeade8a7751ef7b; exit=0; EXPECT=matched; output-sha256=343f997d75163a124e824a7e7dfa4dda46818c2831ac6b2ab910942ddf47cc9e; output-bytes=17; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G16: completed changes are committed, pushed to GitHub main, and deployed to Vercel production
-  EVIDENCE: Commit `39d79f80d2a5c5a440665e979f48bca8e05dea12` was pushed to `origin/main`. Vercel production deployment `dpl_6ipn2q2WPDRi68f44WYvfuagSxNd` is READY and aliased to `https://living-digital-civilization.vercel.app`. `/v1/health` and `/v1/organizations` returned HTTP 200 with testnet adapters connected and the active Genesis record; `/docs`, `/monitor`, `/inspect`, and `/archive` returned HTTP 200.
+  EVIDENCE: Commit `af5caf84a64b05aafcdc311783b27c077e24e9e3` (including protocol docs, agent runner, and execution report) is pushed to `origin/main`. Vercel production deployment `dpl_J3jWtzQFiupKo9fESnZR9oA83PBA` is READY and aliased to `https://living-digital-civilization.vercel.app`. `/v1/health` and `/v1/organizations` returned HTTP 200 with testnet adapters connected and Genesis active; `/docs`, `/monitor`, `/inspect`, and `/archive` returned HTTP 200.
 
 - [x] G17: multi-agent live runner parses and documents safe wallet/key isolation and bounded lifecycle retries
   CHECK: node scripts/check-live-runner.mjs
