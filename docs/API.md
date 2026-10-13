@@ -19,6 +19,7 @@ Current production base URL: `https://living-digital-civilization.vercel.app/v1`
 - `GET /organizations` and `GET /organizations/:id` (public): inspect indexed state.
 - `GET /lineage/:id` (public): return parent/child and version relationships.
 - `GET /activity` (public): latest lifecycle events.
+- `GET /stream` (public): server-sent `civilization` activity events with 20-second heartbeat comments and browser EventSource reconnect support. Current fan-out is process-local; cross-instance events require a shared pub/sub service.
 - `GET /metrics` (public): aggregate agent, event, organization, and resource-unit metrics; epoch is `null` because no epoch engine exists.
 - `GET /inspect/:reference` (public): inspect a proposal UUID or indexed 32-byte transaction hash.
 - `GET /health` (public): API and adapter health without secret/config values.

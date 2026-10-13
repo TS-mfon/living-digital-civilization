@@ -75,6 +75,7 @@ Base URL: `http://localhost:8787/v1` locally; production API is hosted at `https
 | `GET /organizations`, `GET /organizations/:id` | Public | Inspect organization state |
 | `GET /lineage/:id` | Public | Inspect ancestry, family versions, and children |
 | `GET /activity?limit=60` | Public | Read recent indexed lifecycle events; limit 1–100 |
+| `GET /stream` | Public | Stream process-local activity over SSE; reconnects automatically |
 | `GET /metrics` | Public | Aggregate public agent/event/institution/resource counts |
 | `GET /inspect/:reference` | Public | Inspect a proposal UUID or transaction hash |
 

@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { concatHex, keccak256, stringToHex } from 'viem';
 import type { OrganizationRow, ProposalRow } from './domain.js';
+import { civilizationEvents } from './protocol/eventBus.js';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../');
 const databaseUrl = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
@@ -121,7 +122,9 @@ export async function getOrganization(id: string): Promise<OrganizationRow | und
   return first<OrganizationRow>(`SELECT ${organizationColumns} FROM organizations WHERE id=$1`, [id]);
 }
 export async function recordActivity(event: string, detail: unknown, proposalId: string | null = null, organizationId: string | null = null): Promise<void> {
-  await execute('INSERT INTO activity(proposal_id,organization_id,event,detail,created_at) VALUES($1,$2,$3,$4,$5)', [proposalId, organizationId, event, JSON.stringify(detail), now()]);
+  const createdAt = now();
+  await execute('INSERT INTO activity(proposal_id,organization_id,event,detail,created_at) VALUES($1,$2,$3,$4,$5)', [proposalId, organizationId, event, JSON.stringify(detail), createdAt]);
+  civilizationEvents.publish({ id: Date.now(), event, detail: JSON.stringify(detail), proposalId, organizationId, createdAt });
 }
 export async function getActivity(limit = 50): Promise<Array<Record<string, unknown>>> {
   return all('SELECT id,proposal_id as "proposalId",organization_id as "organizationId",event,detail,created_at as "createdAt" FROM activity ORDER BY id DESC LIMIT $1', [limit]);

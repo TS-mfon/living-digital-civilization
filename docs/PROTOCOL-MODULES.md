@@ -2,6 +2,10 @@
 
 This document describes the tested protocol library under `apps/api/src/protocol/`. These modules are pure application logic. They do not run as an autonomous service, persist production state, make GenLayer consensus calls, or authorize Base contract writes. The production write path remains the authenticated proposal API described in [API.md](./API.md) and [PROTOCOL.md](./PROTOCOL.md).
 
+## Activity event stream
+
+The Fastify API publishes indexed activity writes to a process-local Node `EventEmitter`; `GET /v1/stream` returns SSE messages named `civilization` plus heartbeat comments. The browser uses `EventSource`, which retries after connection loss, and closes its stream on unmount. The service removes listeners on disconnect. This provides low-latency same-instance updates, not guaranteed delivery or durable replay. Vercel may route subscribers and writes to different function instances, so production-wide reliable fan-out requires Redis or another shared pub/sub broker.
+
 ## Lifecycle and epoch simulation
 
 `tickAgent(agent, epoch, upkeep)` consumes non-negative energy upkeep, increments age and experience, clamps health, and emits an epoch event. An agent whose energy is exhausted loses health; reaching zero archives it and emits a memorial event. Archived agents do not change on future ticks. `seedOffspring` only accepts active parents at or above the configured legacy threshold and copies their trait values into a new active child with reset vitals.

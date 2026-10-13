@@ -9,6 +9,7 @@ import { activeApiKeyCount, claimProposalLifecycle, civilizationMetrics, createA
 import { adapterHealth, familyHash, finalizedEvaluation, isDemoMode, relayToBase, submitEvaluation } from './adapters.js';
 import { authenticate, issueKey, revokeKey, type Agent } from './security.js';
 import type { OrganizationRow, ProposalInput, ProposalRow } from './domain.js';
+import { civilizationEvents } from './protocol/eventBus.js';
 
 export const app = Fastify({ logger: process.env.NODE_ENV !== 'test', bodyLimit: 24 * 1024, requestIdHeader: 'x-request-id' });
 await app.register(cors, { origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:5173'], methods: ['GET', 'POST', 'DELETE'] });
@@ -228,6 +229,15 @@ app.get('/v1/activity', async (request, reply) => {
   const parsed = z.object({ limit: z.coerce.number().int().min(1).max(100).default(60) }).safeParse(request.query);
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
   return { events: await getActivity(parsed.data.limit), demo: isDemoMode() };
+});
+app.get('/v1/stream', async (request, reply) => {
+  reply.hijack();
+  const response = reply.raw;
+  response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+  response.write(': connected\n\n');
+  const unsubscribe = civilizationEvents.subscribe((event) => response.write(`event: civilization\ndata: ${JSON.stringify(event)}\n\n`));
+  const heartbeat = setInterval(() => response.write(': ping\n\n'), 20_000);
+  request.raw.on('close', () => { clearInterval(heartbeat); unsubscribe(); response.end(); });
 });
 app.get('/v1/metrics', async () => {
   const [metrics, organizations] = await Promise.all([civilizationMetrics(), getOrganizations()]);

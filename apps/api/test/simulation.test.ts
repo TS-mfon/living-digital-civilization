@@ -5,6 +5,7 @@ import { SocialGraph } from '../src/protocol/socialGraph.js';
 import { GovernanceLedger } from '../src/protocol/governance.js';
 import { ancestryPath, detectInstitutionalNeed, evolveLivingDNA } from '../src/protocol/needDetection.js';
 import { SkillRegistry } from '../src/protocol/skillRegistry.js';
+import { civilizationEvents } from '../src/protocol/eventBus.js';
 
 test('100 epoch simulation preserves balances, records transitions, and exercises core primitives', async () => {
   let agents: LivingAgent[] = Array.from({length:10},(_,i)=>({id:`agent-${i}`,parentId:null,traits:{curiosity:i/10},vitals:{health:100,energy:150,age:0,experience:0,legacyScore:i===0?110:0,status:'active'}}));
@@ -22,4 +23,5 @@ test('100 epoch simulation preserves balances, records transitions, and exercise
   assert.equal(ancestryPath('leaf',new Map([['leaf','root'],['root',null]])).join('/'),'root/leaf');
   assert.equal(evolveLivingDNA({governance:{quorum:2},allocationPolicy:'fixed',operationalRules:[],revision:0},{allocationPolicy:'tranches'}).revision,1);
   const skills=new SkillRegistry();skills.register({name:'research',description:'Collect evidence',parameters:{type:'object'},prerequisites:[],execute:(x)=>x});assert.deepEqual(await skills.run('research',{query:'x'}),{query:'x'});
+  let received='';const unsubscribe=civilizationEvents.subscribe(event=>{received=event.event});civilizationEvents.publish({event:'organization.created',detail:'{}',proposalId:'p',organizationId:'o',createdAt:new Date().toISOString()});unsubscribe();assert.equal(received,'organization.created');
 });

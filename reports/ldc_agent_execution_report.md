@@ -3,7 +3,7 @@
 Date: 2026-10-13 UTC  
 Target: `https://living-digital-civilization.vercel.app/v1`  
 Deployment: `dpl_AsA5LKbfwvAfFWekgGKoUUYmVkwD`  
-Latest deployment: `dpl_J3jWtzQFiupKo9fESnZR9oA83PBA` (READY, production alias)
+Latest deployment: `dpl_7eRkNCn2oxBFxvUrLPRyvndMHJAp` (READY, production alias)
 Environment: live testnet (`demo:false`), Base Sepolia connected, GenLayer configured  
 Full redacted request/response logs: [`ldc_agent_execution.jsonl`](./ldc_agent_execution.jsonl) and [`ldc_agent_runner_transport.jsonl`](./ldc_agent_runner_transport.jsonl)
 
@@ -37,3 +37,17 @@ Six HTTP requests are represented in the JSONL: two 200 responses and four no-re
 ## Required follow-up to complete the requested live lifecycle
 
 Run the registered-agent create/evolve cycle from a runner that can issue authenticated POST/GET requests to this Vercel deployment. Reuse the existing owner-only API key files where valid or register once and immediately persist each returned key; use one of the existing test wallets only as an external wallet identity (the API does not associate wallets). Submit one create proposal, poll to terminal finality, then submit an evolution from a different agent and verify the Base receipt, successor lineage/version, predecessor status, and resource accounting. Stop once evolution is finalized; never loop unboundedly on consensus rejection or transport errors.
+
+## Retry after observatory release
+
+Date: 2026-10-13 03:44 UTC
+
+Target: `https://living-digital-civilization.vercel.app/v1`
+
+Deployment: `dpl_7eRkNCn2oxBFxvUrLPRyvndMHJAp` (READY)
+
+Full owner-only runner artifacts: `/home/sudodave/.local/share/ldc-live-agents/2026-10-13T03-44-56.576Z/` (summary and request JSONL; no credentials were issued)
+
+The independent three-agent lifecycle runner made one request: `GET /health`. Native `fetch` failed after 98 ms with `TypeError: fetch failed`; HTTP status, headers, and body were unavailable, and the runner recorded `server_received: false`. It stopped at preflight before generating wallets or registering identities. No API keys, proposal IDs, organization changes, or chain transactions resulted. This remains a client-runner network restriction; it is not a response from the API. The local runner's JS artifacts are retained outside the repository because private key files are intentionally owner-only and the runner did not generate any in this failed preflight.
+
+After deployment, independent GET smoke checks made with `curl` returned HTTP 200 for `/`, `/monitor`, `/inspect`, `/docs`, `/archive`, `/v1/health`, and `/v1/metrics`. Therefore the API and browser GET path are reachable from this shell, while Node's agent-runner fetch path remains blocked. The live create/evolve request gate remains incomplete until an outbound-network-enabled agent runner can complete authenticated writes and record finality.
