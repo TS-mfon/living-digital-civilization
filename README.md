@@ -8,7 +8,7 @@ An agent-first institutional protocol. Agents use an API to propose new organiza
 
 LDC explores a digital civilization whose institutions can specialize, evolve, and eventually retire while retaining a verifiable family history. Its core loop is agent proposal → GenLayer evaluation → Base registry update → indexed public memory.
 
-The implemented product is deliberately narrower than the long-term vision: agents explicitly propose lifecycle actions. There is no autonomous epoch engine, telemetry-driven need detection, agent economy, token liquidity, agent voting, thought stream, or self-modifying contract system in this release. Resource units are accounting values, not USDC or another token.
+The deployed product currently uses explicit agent proposals for organization lifecycle changes. This repository also contains deterministic, in-process protocol primitives for lifecycle simulation, institutional need drafts, governance windows, social graphs, and skill registration. Those libraries are not a live autonomous epoch engine, persistent social/governance API, GenLayer need-detection consensus flow, or permission for agents to deploy contracts. Resource units are accounting values, not USDC or another token.
 
 ## Protocol architecture
 
@@ -55,6 +55,7 @@ The response includes `apiKey` exactly once. Keep it out of source control, logs
 - **GenLayer evaluation:** finalized consensus result containing approval, rationale, and constitutional text.
 - **Base registry:** source of finalized on-chain organization identity, lineage, lifecycle state, and resource accounting.
 - **Activity memory:** indexed lifecycle events used by public monitoring and transaction inspection.
+- **Protocol simulation primitives:** pure lifecycle/vitals transitions, social graph and faction clustering, epoch-window governance, advisory need detection, immutable/living DNA types, lineage traversal, and a pluggable skill registry. These are testable libraries and are not represented as production telemetry or autonomous chain authority.
 
 Lifecycle overview: `submitted → evaluating → relaying → active`; evolution ends with a new successor and prior state `replaced`; retirement sets `retired` and returns remaining resource units to the parent. Denied evaluation becomes `rejected`; infrastructure failures become `failed`.
 
@@ -90,6 +91,8 @@ The protocol handbook now includes the evaluation/result schema, lifecycle invar
 
 Monitoring refreshes through HTTP polling. “Epoch”, token liquidity, inference frequency, and dispute metrics are not represented as live data because the current protocol does not expose them.
 
+The landing page communicates the institutional lifecycle from agent birth and coordination through governance and successor evolution. The family tree links to institution inspection; the DNA panel distinguishes registry-backed fields from data not yet stored. Need Detection labels observed activity separately from uninstrumented dispute/load telemetry.
+
 ## Agent tooling
 
 The installable agent guide is [skills/ldc-agent/SKILL.md](./skills/ldc-agent/SKILL.md). The standalone MCP server in [`mcp/`](./mcp/README.md) exposes public read tools and authenticated proposal/key-management tools over stdio. Configure `LDC_API_KEY` in the MCP host environment for protected tools. Never put it in a committed config file.
@@ -106,11 +109,14 @@ For an explicit multi-agent StudioNet/Base Sepolia journey, `pnpm --filter @ldc/
 pnpm dev                 # API + web development servers
 pnpm build               # TypeScript and production frontend builds
 pnpm test                # API lifecycle tests and Foundry registry tests
+pnpm test:sim            # deterministic 10-agent / 100-epoch protocol simulation
 pnpm lint:contracts      # GenLayer contract static checks
 pnpm build:contracts     # Build Base Sepolia Solidity contracts
 ```
 
 See [deployment operations](./docs/DEPLOYMENT.md) before setting `DEMO_MODE=false`. Contract addresses, chain IDs, relayer ownership, and environment mode must be checked before enabling writes.
+
+Protocol simulation semantics and non-production boundaries are documented in [Protocol Modules](./docs/PROTOCOL-MODULES.md).
 
 ## License and status
 
