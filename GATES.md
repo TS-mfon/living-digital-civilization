@@ -38,3 +38,21 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 
 - [x] G8: agent integration guide enables API key issuance and proposal lifecycle without UI write controls
   EVIDENCE: `docs/API.md` documents key issuance, authenticated proposal submission, polling, and read endpoints; the automated API lifecycle test covers the same flow. `apps/web/src/App.tsx` contains monitoring/selection controls only and submits no lifecycle mutations.
+
+- [ ] G9: API report findings have route coverage and query-bound validation
+  CHECK: pnpm --filter @ldc/api test
+  EXPECT: pass 4
+  EVIDENCE: pending
+
+- [ ] G10: civilization observatory and API compile for production
+  CHECK: pnpm build
+  EXPECT: apps/api build: Done
+  EVIDENCE: pending
+
+- [ ] G11: MCP tool server is valid JavaScript and protocol docs match the implemented API
+  CHECK: node --check mcp/server.mjs && node -e 'console.log("mcp syntax valid")'
+  EXPECT: mcp syntax valid
+  EVIDENCE: pending
+
+- [ ] G12: updated GitHub commit and Vercel production deployment are recorded
+  EVIDENCE: pending

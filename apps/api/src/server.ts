@@ -1,10 +1,11 @@
+import './env.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { keccak256, stringToHex } from 'viem';
-import { activeApiKeyCount, claimProposalLifecycle, createAgent, createProposal, db, GENESIS_ID, getActivity, getOrganization, getOrganizations, getProposal, insertOrganization, pendingEvaluations, proposalsForOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
+import { activeApiKeyCount, claimProposalLifecycle, civilizationMetrics, createAgent, createProposal, db, GENESIS_ID, getActivity, getAgent, getOrganization, getOrganizations, getProposal, inspectTransaction, insertOrganization, listAgents, pendingEvaluations, proposalsForOrganization, recordActivity, setOrganizationStatus, setResourceUnits, updateProposal } from './db.js';
 import { adapterHealth, familyHash, finalizedEvaluation, isDemoMode, relayToBase, submitEvaluation } from './adapters.js';
 import { authenticate, issueKey, revokeKey, type Agent } from './security.js';
 import type { OrganizationRow, ProposalInput, ProposalRow } from './domain.js';
@@ -109,6 +110,7 @@ function scheduleLocalLifecycle(proposalId: string, delay = 180): void {
 }
 
 app.get('/health', async () => ({ ok: true, service: 'living-digital-civilization-api', ...await adapterHealth() }));
+app.get('/v1/health', async () => ({ ok: true, service: 'living-digital-civilization-api', ...await adapterHealth() }));
 app.get('/v1/internal/process', async (request, reply) => {
   const secret = process.env.CRON_SECRET;
   if (!secret || bearer(request) !== secret) return reply.code(401).send({ error: 'unauthorized' });
@@ -125,6 +127,18 @@ app.post('/v1/agents', { config: { rateLimit: { max: 5, timeWindow: '1 minute' }
   const key = await issueKey(agentId);
   await recordActivity('agent.registered', { agentId, name: parsed.data.name });
   return reply.code(201).send({ agent: { id: agentId, name: parsed.data.name }, keyId: key.id, apiKey: key.secret, warning: 'Copy this key now. It is shown only once.' });
+});
+app.get('/v1/agents', async (request, reply) => {
+  const parsed = z.object({ limit: z.coerce.number().int().min(1).max(100).default(100) }).safeParse(request.query);
+  if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+  return { agents: await listAgents(parsed.data.limit) };
+});
+app.get('/v1/agents/:id', async (request, reply) => {
+  const parsed = z.string().uuid().safeParse((request.params as { id: string }).id);
+  if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', message: 'Agent id must be a UUID.' });
+  const agent = await getAgent(parsed.data);
+  if (!agent) return reply.code(404).send({ error: 'not_found' });
+  return { agent };
 });
 
 app.get('/v1/agents/me', async (request, reply) => {
@@ -210,7 +224,30 @@ app.get<{ Params: { id: string } }>('/v1/lineage/:id', async (request, reply) =>
   const children = all.filter((item) => item.parentId === focus.id);
   return { focus, ancestors, familyVersions: family, children, demo: isDemoMode() };
 });
-app.get('/v1/activity', async () => ({ events: await getActivity(60), demo: isDemoMode() }));
+app.get('/v1/activity', async (request, reply) => {
+  const parsed = z.object({ limit: z.coerce.number().int().min(1).max(100).default(60) }).safeParse(request.query);
+  if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
+  return { events: await getActivity(parsed.data.limit), demo: isDemoMode() };
+});
+app.get('/v1/metrics', async () => {
+  const [metrics, organizations] = await Promise.all([civilizationMetrics(), getOrganizations()]);
+  return {
+    ...metrics,
+    totalOrganizations: organizations.length,
+    activeOrganizations: organizations.filter((organization) => organization.status === 'active').length,
+    resourceUnitsGoverned: organizations.filter((organization) => organization.status === 'active').reduce((total, organization) => total + organization.resourceUnits, 0),
+    maxGeneration: organizations.reduce((max, organization) => Math.max(max, organization.generation), 0),
+    epoch: null,
+    epochSource: 'not implemented by the current protocol',
+  };
+});
+app.get('/v1/inspect/:reference', async (request, reply) => {
+  const parsed = z.string().regex(/^(0x[0-9a-fA-F]{64}|[0-9a-fA-F-]{36}|demo-(gen|base):[0-9a-fA-F-]{36})$/).safeParse((request.params as { reference: string }).reference);
+  if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', message: 'Enter a proposal UUID, 32-byte transaction hash, or demo reference.' });
+  const result = await inspectTransaction(parsed.data);
+  if (!result) return reply.code(404).send({ error: 'not_found' });
+  return result;
+});
 
 export async function startServer(): Promise<void> {
   const port = Number(process.env.PORT ?? 8787);

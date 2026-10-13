@@ -126,6 +126,33 @@ export async function recordActivity(event: string, detail: unknown, proposalId:
 export async function getActivity(limit = 50): Promise<Array<Record<string, unknown>>> {
   return all('SELECT id,proposal_id as "proposalId",organization_id as "organizationId",event,detail,created_at as "createdAt" FROM activity ORDER BY id DESC LIMIT $1', [limit]);
 }
+export async function listAgents(limit = 100): Promise<Array<{ id: string; name: string; createdAt: string }>> {
+  return all('SELECT id,name,created_at as "createdAt" FROM agents ORDER BY created_at DESC LIMIT $1', [limit]);
+}
+export async function getAgent(id: string): Promise<{ id: string; name: string; createdAt: string } | undefined> {
+  return first('SELECT id,name,created_at as "createdAt" FROM agents WHERE id=$1', [id]);
+}
+export async function civilizationMetrics(): Promise<{ totalAgents: number; totalEvents: number; eventThroughput: number }> {
+  const rows = await all<{ agents: number | string; events: number | string; recent: number | string }>(
+    `SELECT (SELECT COUNT(*) FROM agents) as agents, (SELECT COUNT(*) FROM activity) as events,
+      (SELECT COUNT(*) FROM activity WHERE created_at >= $1) as recent`,
+    [new Date(Date.now() - 60 * 60 * 1000).toISOString()],
+  );
+  return { totalAgents: Number(rows[0]?.agents ?? 0), totalEvents: Number(rows[0]?.events ?? 0), eventThroughput: Number(rows[0]?.recent ?? 0) };
+}
+export async function inspectTransaction(reference: string): Promise<Record<string, unknown> | undefined> {
+  const proposal = await first<Record<string, unknown>>(
+    `SELECT id,action,parent_id as "parentId",organization_id as "organizationId",name,organization_type as type,
+      purpose,allocation,status,evaluation,genlayer_tx as "genlayerTx",base_tx as "baseTx",error,created_at as "createdAt",updated_at as "updatedAt"
+      FROM proposals WHERE id=$1 OR genlayer_tx=$2 OR base_tx=$3 LIMIT 1`, [reference, reference, reference],
+  );
+  if (proposal) return { kind: 'proposal', ...proposal, evaluation: proposal.evaluation ? JSON.parse(String(proposal.evaluation)) : null };
+  const event = await first<Record<string, unknown>>(
+    `SELECT id,proposal_id as "proposalId",organization_id as "organizationId",event,detail,created_at as "createdAt"
+      FROM activity WHERE detail LIKE $1 ORDER BY id DESC LIMIT 1`, [`%${reference}%`],
+  );
+  return event ? { kind: 'activity', ...event, detail: String(event.detail) } : undefined;
+}
 export async function updateProposal(id: string, changes: Partial<Pick<ProposalRow, 'status'|'evaluation'|'genlayerTx'|'baseTx'|'error'>>): Promise<void> {
   const cols: Record<string, string> = { status: 'status', evaluation: 'evaluation', genlayerTx: 'genlayer_tx', baseTx: 'base_tx', error: 'error' };
   const entries = Object.entries(changes).filter(([key, value]) => cols[key] && value !== undefined);

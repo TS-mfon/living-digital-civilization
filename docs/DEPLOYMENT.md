@@ -26,7 +26,7 @@ The helper selects `studionet`, uses the locally encrypted `ldc-studionet-deploy
 
 ## Vercel frontend and API
 
-The repository root is the Vercel project root. `vercel.json` builds the read-only Vite observatory, routes `/v1/*` and `/health` to the Fastify Function, and schedules the internal lifecycle worker once per minute. Local mode uses SQLite. Vercel refuses to start the API without `DATABASE_URL`; connect a Neon Postgres resource before deploying. The first API startup creates the required tables and the Genesis record.
+The repository root is the Vercel project root. `vercel.json` builds the read-only Vite observatory, routes `/v1/*` and `/health` to the Fastify Function, and rewrites browser routes to the SPA entry point. The checked-in recovery cron expression is `0 0 * * *` (once daily); agents should poll their proposals after submission. Local mode uses SQLite. Vercel refuses to start the API without `DATABASE_URL`; connect a Neon Postgres resource before deploying. The first API startup creates the required tables and the Genesis record.
 
 Set these Vercel environment variables for production and preview as needed:
 

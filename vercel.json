@@ -5,7 +5,11 @@
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     { "source": "/v1/:path*", "destination": "/api/v1/:path*" },
-    { "source": "/health", "destination": "/api/health" }
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/monitor/:path*", "destination": "/index.html" },
+    { "source": "/inspect/:path*", "destination": "/index.html" },
+    { "source": "/docs/:path*", "destination": "/index.html" },
+    { "source": "/archive/:path*", "destination": "/index.html" }
   ],
   "crons": [
     { "path": "/api/v1/internal/process", "schedule": "0 0 * * *" }

@@ -22,6 +22,9 @@ test('agent can receive a one-time key, submit a child DAO, and inspect its comp
   const health = await app.inject({ method: 'GET', url: '/health' });
   assert.equal(health.statusCode, 200);
   assert.equal(health.json().mode, 'demo');
+  const versionedHealth = await app.inject({ method: 'GET', url: '/v1/health' });
+  assert.equal(versionedHealth.statusCode, 200);
+  assert.equal(versionedHealth.json().mode, 'demo');
 
   const registration = await app.inject({ method: 'POST', url: '/v1/agents', payload: { name: 'Research Agent' } });
   assert.equal(registration.statusCode, 201);
@@ -51,6 +54,13 @@ test('agent can receive a one-time key, submit a child DAO, and inspect its comp
     return result.json();
   };
   let result = await waitForStatus(proposalId, 'active');
+  const inspected = await app.inject({ method: 'GET', url: `/v1/inspect/${proposalId}` });
+  assert.equal(inspected.statusCode, 200, inspected.body);
+  assert.equal(inspected.json().id, proposalId);
+  assert.equal(inspected.json().kind, 'proposal');
+  const inspectedTransaction = await app.inject({ method: 'GET', url: `/v1/inspect/${encodeURIComponent(String(result.genlayerTx))}` });
+  assert.equal(inspectedTransaction.statusCode, 200, inspectedTransaction.body);
+  assert.equal(inspectedTransaction.json().id, proposalId);
   const institutions = await app.inject({ method: 'GET', url: '/v1/organizations' });
   const child = institutions.json().organizations.find((organization: { name: string }) => organization.name === 'Open Research');
   assert.ok(child);
@@ -128,6 +138,23 @@ test('invalid requests, unauthenticated writes, cross-agent reads, and revoked k
   assert.equal(successfulRevoke.statusCode, 200);
   const revokedRead = await app.inject({ method: 'GET', url: '/v1/agents/me', headers: { authorization: `Bearer ${ownKey.json().apiKey}` } });
   assert.equal(revokedRead.statusCode, 401);
+});
+
+test('read APIs expose public identities and metrics and reject invalid pagination', async () => {
+  const negativeLimit = await app.inject({ method: 'GET', url: '/v1/activity?limit=-1' });
+  assert.equal(negativeLimit.statusCode, 400);
+  const oversizedLimit = await app.inject({ method: 'GET', url: '/v1/agents?limit=101' });
+  assert.equal(oversizedLimit.statusCode, 400);
+  const agents = await app.inject({ method: 'GET', url: '/v1/agents?limit=10' });
+  assert.equal(agents.statusCode, 200);
+  assert.ok(Array.isArray(agents.json().agents));
+  assert.equal(JSON.stringify(agents.json()).includes('apiKey'), false);
+  const metrics = await app.inject({ method: 'GET', url: '/v1/metrics' });
+  assert.equal(metrics.statusCode, 200);
+  assert.equal(typeof metrics.json().totalAgents, 'number');
+  assert.equal(metrics.json().epoch, null);
+  const invalidReference = await app.inject({ method: 'GET', url: '/v1/inspect/invalid' });
+  assert.equal(invalidReference.statusCode, 400);
 });
 
 test('serverless lifecycle worker requires its private cron secret', async () => {

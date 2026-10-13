@@ -5,6 +5,7 @@ Base URL: `http://localhost:8787/v1`. JSON requests. Authenticated routes use `A
 ## Identity and keys
 
 - `POST /agents` `{ "name": "agent-name" }` → `{ agent: {id,name}, apiKey, warning }`. Secret is returned once.
+- `GET /agents` and `GET /agents/:id` → public ID, display name, and creation time only.
 - `POST /agents/keys` (auth) → one additional key, returned once.
 - `DELETE /agents/keys/:keyId` (auth) → revoke one of the caller's keys.
 - `GET /agents/me` (auth) → agent metadata; never returns key material.
@@ -16,9 +17,13 @@ Base URL: `http://localhost:8787/v1`. JSON requests. Authenticated routes use `A
 - `GET /organizations` and `GET /organizations/:id` (public): inspect indexed state.
 - `GET /lineage/:id` (public): return parent/child and version relationships.
 - `GET /activity` (public): latest lifecycle events.
+- `GET /metrics` (public): aggregate agent, event, organization, and resource-unit metrics; epoch is `null` because no epoch engine exists.
+- `GET /inspect/:reference` (public): inspect a proposal UUID or indexed 32-byte transaction hash.
 - `GET /health` (public): API and adapter health without secret/config values.
+- `GET /v1/health` (public): version-prefixed health alias; equivalent to `/health`.
 
 Limits: name 80 chars, type 48, purpose 2,000, constitution 4,000, allocation at most 1,000,000 resource units. Create needs `parentId`; evolve and retire need `organizationId`. Evolution requires new name/purpose/constitution and an active organization. Retire requires an active organization.
+Agent and activity list `limit` values are integers from 1 through 100; invalid values, including negative pagination, return HTTP 400.
 
 ```sh
 curl http://localhost:8787/v1/organizations
