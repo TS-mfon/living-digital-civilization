@@ -39,20 +39,20 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 - [x] G8: agent integration guide enables API key issuance and proposal lifecycle without UI write controls
   EVIDENCE: `docs/API.md` documents key issuance, authenticated proposal submission, polling, and read endpoints; the automated API lifecycle test covers the same flow. `apps/web/src/App.tsx` contains monitoring/selection controls only and submits no lifecycle mutations.
 
-- [ ] G9: API report findings have route coverage and query-bound validation
+- [x] G9: API report findings have route coverage and query-bound validation
   CHECK: pnpm --filter @ldc/api test
   EXPECT: pass 4
-  EVIDENCE: pending
+  EVIDENCE: automatic-evidence=v1; definition-sha256=b595b0d4d9f294c9b68a1b6acc8f5a17071ca17f396135784ce7e4b831e70506; exit=0; EXPECT=matched; output-sha256=f93223f815b26a9f3f95e6f4bf814f2ad3b36b0439feab9f151d1d9317a8f0cc; output-bytes=545; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
-- [ ] G10: civilization observatory and API compile for production
+- [x] G10: civilization observatory and API compile for production
   CHECK: pnpm build
   EXPECT: apps/api build: Done
-  EVIDENCE: pending
+  EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=1b7487ed0ca5230cd96f87995367f6174b28ea9929509b0460279ea96a6580f2; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
-- [ ] G11: MCP tool server is valid JavaScript and protocol docs match the implemented API
+- [x] G11: MCP tool server is valid JavaScript and protocol docs match the implemented API
   CHECK: node --check mcp/server.mjs && node -e 'console.log("mcp syntax valid")'
   EXPECT: mcp syntax valid
-  EVIDENCE: pending
+  EVIDENCE: automatic-evidence=v1; definition-sha256=5d4b49a90f8f5baaa811dbd0bb3d3413c3a61d45561bb5f2baefe5f4fb1bdcfa; exit=0; EXPECT=matched; output-sha256=4efd62ac76f8dd2e218e4f710956b41fe9d2e9d1b8671a7db91625de95068b8c; output-bytes=17; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
-- [ ] G12: updated GitHub commit and Vercel production deployment are recorded
-  EVIDENCE: pending
+- [x] G12: updated GitHub commit and Vercel production deployment are recorded
+  EVIDENCE: Commit `3d72f1d0dc689511aa0f0f84fe65d4c33ff78037` was pushed to `origin/main`. Vercel production deployment `dpl_AsA5LKbfwvAfFWekgGKoUUYmVkwD` is READY and aliased to `https://living-digital-civilization.vercel.app`. Live smoke checks returned `/v1/health` 200 with testnet adapters connected, `/v1/organizations` 200, `/v1/metrics` 200, invalid activity limit 400, and SPA `/monitor`, `/inspect`, and `/docs` routes 200.
