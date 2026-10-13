@@ -5,22 +5,22 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 - [x] G0: this ledger contains executable, outcome-specific acceptance checks
   CHECK: node /home/sudodave/.agents/skills/unlazy/scripts/gate-lint.mjs GATES.md
   EXPECT: LINT OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8cf2a8ca706339a76b5da0eea4f205881e5092cfc7b768115104c8c19a06b2fd; exit=0; EXPECT=matched; output-sha256=1f53c72d2fddaf96495c27ef0a6347831e1602a62c6c438957c6329a77ef0862; output-bytes=504; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8cf2a8ca706339a76b5da0eea4f205881e5092cfc7b768115104c8c19a06b2fd; exit=0; EXPECT=matched; output-sha256=7e1af4d85b057d8c33f8ff4062b9b6fca9bf0fd7e2a06634c77e83ae20da615a; output-bytes=742; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G1: API and web workspaces build from the locked dependency graph
   CHECK: pnpm build
   EXPECT: apps/api build: Done
-  EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=11cbd31411761bfb5e6eafa9688629b4c5c319882f82543169a586c749cf5069; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=c09463d42dfa8ccc324908ed1fbfbf202e1d8d6124c6fb9c246baa52b07a3116; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G2: API lifecycle behavior, agent keys, and authorization are exercised by automated tests
   CHECK: pnpm test
   EXPECT: agent can receive a one-time key, submit a child DAO, and inspect its completed lineage
-  EVIDENCE: automatic-evidence=v1; definition-sha256=7a82885c93e5e2cd1ef26f6d72723499e25ba391156801f1664f8e93c7b01f91; exit=0; EXPECT=matched; output-sha256=72201127289bf004bc9b93d9d7ad47526230fd53d4a10c317c58bc79a6c8b11b; output-bytes=1114; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=7a82885c93e5e2cd1ef26f6d72723499e25ba391156801f1664f8e93c7b01f91; exit=0; EXPECT=matched; output-sha256=3cc85baad833c5abd7359db876c729cc3a9635608428f60a6821964cd7512a22; output-bytes=1211; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G3: Base registry enforces creation, evolution, retirement, lineage, resource accounting, and role boundaries in tests
   CHECK: forge test --root contracts/base
   EXPECT: 4 tests passed
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8734663d630383c64cc1d566560d2736200f5802746703c0a58ae5b0cbf10ee8; exit=0; EXPECT=matched; output-sha256=6210586a03440f462b135aad46fa9961376eb5b7e8c7e1b673a7abf8be3926ef; output-bytes=599; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8734663d630383c64cc1d566560d2736200f5802746703c0a58ae5b0cbf10ee8; exit=0; EXPECT=matched; output-sha256=3f8e08d0a6e99b716d0a25e1558a5217d0b830137501a4ac0e53019275310266; output-bytes=599; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G4: GenLayer evaluator passes the available GenVM source lint checks
   CHECK: genvm-lint lint contracts/genlayer/institutional_evaluator.py
@@ -42,12 +42,12 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 - [x] G9: API report findings have route coverage and query-bound validation
   CHECK: pnpm --filter @ldc/api test
   EXPECT: pass 4
-  EVIDENCE: automatic-evidence=v1; definition-sha256=b595b0d4d9f294c9b68a1b6acc8f5a17071ca17f396135784ce7e4b831e70506; exit=0; EXPECT=matched; output-sha256=f93223f815b26a9f3f95e6f4bf814f2ad3b36b0439feab9f151d1d9317a8f0cc; output-bytes=545; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=b595b0d4d9f294c9b68a1b6acc8f5a17071ca17f396135784ce7e4b831e70506; exit=0; EXPECT=matched; output-sha256=78cc7eabf7467a8587cfc04a3c6276fa926c4681273b93f7476d64de1526d40a; output-bytes=546; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G10: civilization observatory and API compile for production
   CHECK: pnpm build
   EXPECT: apps/api build: Done
-  EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=1b7487ed0ca5230cd96f87995367f6174b28ea9929509b0460279ea96a6580f2; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=a4faad38493c36ec0d7e0778b836a7392e166ee014fb41b32b5ed4ec50be5170; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G11: MCP tool server is valid JavaScript and protocol docs match the implemented API
   CHECK: pnpm mcp:test
@@ -64,14 +64,15 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 
 - [ ] G14: independent live agent identities with dedicated wallets execute organization birth and an evolution to terminal finality on StudioNet and Base Sepolia
   EVIDENCE: Add production request trace, wallet addresses only, agent IDs, proposal IDs, final proposal statuses, and Base transaction hashes after the run. Never include API keys or private keys.
+ABANDON: G14 The current execution environment blocks the outbound sockets required for authenticated production writes (Vercel CLI curl reports Operation not permitted; native fetch fails before response). Handoff: run `pnpm --filter @ldc/api agents:live` from an outbound-network-enabled runner and attach its redacted output after create, evolution, and retirement reach finality.
 
 - [x] G15: production run report includes every request and response while redacting credentials and signing secrets
   CHECK: node scripts/check-live-report.mjs reports/ldc_agent_execution.jsonl reports/ldc_agent_runner_transport.jsonl
   EXPECT: LIVE REPORT PASS
   EVIDENCE: automatic-evidence=v1; definition-sha256=1ab7735284fa88775285b3058553a55e9388c292068bfe8ccfeade8a7751ef7b; exit=0; EXPECT=matched; output-sha256=343f997d75163a124e824a7e7dfa4dda46818c2831ac6b2ab910942ddf47cc9e; output-bytes=17; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
-- [ ] G16: completed changes are committed, pushed to GitHub main, and deployed to Vercel production
-  EVIDENCE: Record commit, deployment ID, and production smoke results after deployment.
+- [x] G16: completed changes are committed, pushed to GitHub main, and deployed to Vercel production
+  EVIDENCE: Commit `39d79f80d2a5c5a440665e979f48bca8e05dea12` was pushed to `origin/main`. Vercel production deployment `dpl_6ipn2q2WPDRi68f44WYvfuagSxNd` is READY and aliased to `https://living-digital-civilization.vercel.app`. `/v1/health` and `/v1/organizations` returned HTTP 200 with testnet adapters connected and the active Genesis record; `/docs`, `/monitor`, `/inspect`, and `/archive` returned HTTP 200.
 
 - [x] G17: multi-agent live runner parses and documents safe wallet/key isolation and bounded lifecycle retries
   CHECK: node scripts/check-live-runner.mjs

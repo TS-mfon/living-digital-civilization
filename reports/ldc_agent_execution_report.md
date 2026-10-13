@@ -3,12 +3,15 @@
 Date: 2026-10-13 UTC  
 Target: `https://living-digital-civilization.vercel.app/v1`  
 Deployment: `dpl_AsA5LKbfwvAfFWekgGKoUUYmVkwD`  
+Follow-up deployment of protocol docs and agent runner: `dpl_6ipn2q2WPDRi68f44WYvfuagSxNd` (READY, production alias)
 Environment: live testnet (`demo:false`), Base Sepolia connected, GenLayer configured  
 Full redacted request/response logs: [`ldc_agent_execution.jsonl`](./ldc_agent_execution.jsonl) and [`ldc_agent_runner_transport.jsonl`](./ldc_agent_runner_transport.jsonl)
 
 ## Outcome
 
 The Vercel read-only path reached production: health returned HTTP 200 and identified testnet mode with Base connected and GenLayer configured. Organization discovery returned HTTP 200 and found the active Genesis organization with 1,000,000 resource units.
+
+After publishing the documentation and live-agent runner, the new production deployment passed read-only smoke checks: `/v1/health` and `/v1/organizations` returned 200, as did `/docs`, `/monitor`, `/inspect`, and `/archive`.
 
 The authenticated write path did **not** run. The new registration attempt failed in Vercel CLI before an HTTP exchange with `curl: (7) failed to open socket: Operation not permitted`. Authenticated identity verification and public agent listing also failed at socket creation. The independent native-fetch runner failed its initial `/health` preflight with `TypeError: fetch failed` after 161 ms, before registration or wallet generation. These are runner transport errors, not API responses. No new API identity/key was issued, no proposal was submitted, and no organization was created/evolved/retired. The pre-existing API keys and three test wallets were not used for a chain transaction. No funds were moved.
 
