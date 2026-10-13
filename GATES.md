@@ -50,9 +50,9 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
   EVIDENCE: automatic-evidence=v1; definition-sha256=202d7c621f83497bd709d007ae40d4631b1748d002198ff5379733d0de8cd2ae; exit=0; EXPECT=matched; output-sha256=1b7487ed0ca5230cd96f87995367f6174b28ea9929509b0460279ea96a6580f2; output-bytes=657; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G11: MCP tool server is valid JavaScript and protocol docs match the implemented API
-  CHECK: node --check mcp/server.mjs && node -e 'console.log("mcp syntax valid")'
-  EXPECT: mcp syntax valid
-  EVIDENCE: automatic-evidence=v1; definition-sha256=5d4b49a90f8f5baaa811dbd0bb3d3413c3a61d45561bb5f2baefe5f4fb1bdcfa; exit=0; EXPECT=matched; output-sha256=4efd62ac76f8dd2e218e4f710956b41fe9d2e9d1b8671a7db91625de95068b8c; output-bytes=17; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+  CHECK: pnpm mcp:test
+  EXPECT: MCP initialize, tool discovery, and argument validation passed
+  EVIDENCE: automatic-evidence=v1; definition-sha256=dbcf25a4e211423507530a57fdbc0a494e8bd928a600e91b6290c5d353492fa8; exit=0; EXPECT=matched; output-sha256=3270b895baefe3e438a87ab5e5ee87f1525cb5518cda109f59716ed38012ce16; output-bytes=84; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
 
 - [x] G12: updated GitHub commit and Vercel production deployment are recorded
   EVIDENCE: Commit `3d72f1d0dc689511aa0f0f84fe65d4c33ff78037` was pushed to `origin/main`. Vercel production deployment `dpl_AsA5LKbfwvAfFWekgGKoUUYmVkwD` is READY and aliased to `https://living-digital-civilization.vercel.app`. Live smoke checks returned `/v1/health` 200 with testnet adapters connected, `/v1/organizations` 200, `/v1/metrics` 200, invalid activity limit 400, and SPA `/monitor`, `/inspect`, and `/docs` routes 200.

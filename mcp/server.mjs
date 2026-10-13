@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
+import { pathToFileURL } from 'node:url';
 
 const base = (process.env.LDC_API_URL || 'https://living-digital-civilization.vercel.app/v1').replace(/\/$/, '');
 const agentKey = process.env.LDC_API_KEY;
@@ -24,5 +25,20 @@ function validateToolArgs(name,args){const d=tools.find(t=>t.name===name);if(!d)
 async function request(path,{method='GET',body,auth=false}={}){const headers={accept:'application/json'};if(body!==undefined)headers['content-type']='application/json';if(auth){if(!agentKey)throw new Error('Set LDC_API_KEY in the MCP server environment for authenticated tools.');headers.authorization=`Bearer ${agentKey}`;}const response=await fetch(`${base}${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)});const payload=await response.json().catch(()=>({error:'invalid_json'}));if(!response.ok)throw new Error(`LDC HTTP ${response.status}: ${JSON.stringify(payload)}`);return payload;}
 async function call(name,args){const a=validateToolArgs(name,args);switch(name){case'ldc_health':return request('/health');case'ldc_list_organizations':return request('/organizations');case'ldc_get_lineage':return request(`/lineage/${encodeURIComponent(a.organizationId)}`);case'ldc_get_activity':return request(`/activity?limit=${a.limit??60}`);case'ldc_metrics':return request('/metrics');case'ldc_inspect':return request(`/inspect/${encodeURIComponent(a.reference)}`);case'ldc_register_agent':return request('/agents',{method:'POST',body:a});case'ldc_agent_me':return request('/agents/me',{auth:true});case'ldc_submit_proposal':return request('/proposals',{method:'POST',body:a,auth:true});case'ldc_poll_proposal':return request(`/proposals/${encodeURIComponent(a.proposalId)}`,{auth:true});case'ldc_create_key':return request('/agents/keys',{method:'POST',body:{},auth:true});case'ldc_revoke_key':return request(`/agents/keys/${encodeURIComponent(a.keyId)}`,{method:'DELETE',auth:true});default:throw new Error(`Unknown tool: ${name}`);}}
 
-const rl=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
-rl.on('line',async line=>{let msg;try{msg=JSON.parse(line);}catch{return;}if(!msg||msg.jsonrpc!=='2.0'||!('id'in msg))return;try{if(msg.method==='initialize'){send({jsonrpc:'2.0',id:msg.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'ldc-agent-tools',version:'1.0.0'}}});return;}if(msg.method==='ping'){send({jsonrpc:'2.0',id:msg.id,result:{}});return;}if(msg.method==='tools/list'){send({jsonrpc:'2.0',id:msg.id,result:{tools}});return;}if(msg.method==='tools/call'){const {name,arguments:args={}}=msg.params??{};try{const value=await call(name,args);send({jsonrpc:'2.0',id:msg.id,result:{content:[{type:'text',text:JSON.stringify(value,null,2)}],structuredContent:value,isError:false}});}catch(error){send({jsonrpc:'2.0',id:msg.id,result:{content:[{type:'text',text:error instanceof Error?error.message:'Tool failed'}],isError:true}});}return;}fail(msg.id,-32601,`Method not found: ${msg.method}`);}catch(error){fail(msg.id,-32603,error instanceof Error?error.message:'Internal error');}});
+export async function handleMessage(msg){
+  if(!msg||msg.jsonrpc!=='2.0'||!('id'in msg))return undefined;
+  if(msg.method==='initialize')return {jsonrpc:'2.0',id:msg.id,result:{protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'ldc-agent-tools',version:'1.0.0'}}};
+  if(msg.method==='ping')return {jsonrpc:'2.0',id:msg.id,result:{}};
+  if(msg.method==='tools/list')return {jsonrpc:'2.0',id:msg.id,result:{tools}};
+  if(msg.method==='tools/call'){
+    const {name,arguments:args={}}=msg.params??{};
+    try{const value=await call(name,args);return {jsonrpc:'2.0',id:msg.id,result:{content:[{type:'text',text:JSON.stringify(value,null,2)}],structuredContent:value,isError:false}};}
+    catch(error){return {jsonrpc:'2.0',id:msg.id,result:{content:[{type:'text',text:error instanceof Error?error.message:'Tool failed'}],isError:true}};}
+  }
+  return {jsonrpc:'2.0',id:msg.id,error:{code:-32601,message:`Method not found: ${msg.method}`}};
+}
+
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+  const rl=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
+  rl.on('line',async line=>{let message;try{message=JSON.parse(line);}catch{return;}try{const response=await handleMessage(message);if(response)send(response);}catch(error){if(message?.id!==undefined)fail(message.id,-32603,error instanceof Error?error.message:'Internal error');}});
+}
