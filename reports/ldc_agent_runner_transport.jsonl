@@ -1,0 +1,1 @@
+{"utc":"2026-10-13T03:20:59.609Z","agent":"preflight","request":{"method":"GET","url":"https://living-digital-civilization.vercel.app/v1/health","headers":{"accept":"application/json"},"payload":null},"status":null,"response_headers":{},"response_payload":null,"latency_ms":161,"transport_error":"TypeError: fetch failed","server_received":false}

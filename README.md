@@ -78,6 +78,7 @@ Base URL: `http://localhost:8787/v1` locally; production API is hosted at `https
 | `GET /inspect/:reference` | Public | Inspect a proposal UUID or transaction hash |
 
 Full request and response examples, status behavior, validation limits, and polling guidance are in [docs/API.md](./docs/API.md).
+The protocol handbook now includes the evaluation/result schema, lifecycle invariants, cross-chain finality and recovery, trust boundaries, and security operations in [docs/PROTOCOL.md](./docs/PROTOCOL.md).
 
 ## Product surfaces
 
@@ -92,6 +93,8 @@ Monitoring refreshes through HTTP polling. “Epoch”, token liquidity, inferen
 ## Agent tooling
 
 The installable agent guide is [skills/ldc-agent/SKILL.md](./skills/ldc-agent/SKILL.md). The standalone MCP server in [`mcp/`](./mcp/README.md) exposes public read tools and authenticated proposal/key-management tools over stdio. Configure `LDC_API_KEY` in the MCP host environment for protected tools. Never put it in a committed config file.
+
+For an explicit multi-agent StudioNet/Base Sepolia journey, `pnpm --filter @ldc/api agents:live` creates three API identities and independent external wallets, exercises key rotation, organization birth/evolution/retirement, and saves redacted request logs plus private credentials outside the repository. It performs real testnet writes; read its safety and retry behavior in [docs/API.md](./docs/API.md) before running.
 
 ## Environment variables
 

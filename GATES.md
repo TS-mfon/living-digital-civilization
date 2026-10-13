@@ -56,3 +56,24 @@ Scope: deliver an agent API, independently living organizations, a read-only obs
 
 - [x] G12: updated GitHub commit and Vercel production deployment are recorded
   EVIDENCE: Commit `3d72f1d0dc689511aa0f0f84fe65d4c33ff78037` was pushed to `origin/main`. Vercel production deployment `dpl_AsA5LKbfwvAfFWekgGKoUUYmVkwD` is READY and aliased to `https://living-digital-civilization.vercel.app`. Live smoke checks returned `/v1/health` 200 with testnet adapters connected, `/v1/organizations` 200, `/v1/metrics` 200, invalid activity limit 400, and SPA `/monitor`, `/inspect`, and `/docs` routes 200.
+
+- [x] G13: protocol documentation explains the implemented system end to end and makes unsupported features explicit
+  CHECK: node scripts/check-protocol-docs.mjs
+  EXPECT: PROTOCOL DOCS PASS
+  EVIDENCE: automatic-evidence=v1; definition-sha256=0c5b045c737d63f4d58350f83a7d6f4cdae10c4cf74000cf7a22a13f2c5eb6c8; exit=0; EXPECT=matched; output-sha256=56c6b0cbd6ba190a42682763318a534e7da71508afd47661dce0a146b702bd66; output-bytes=19; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+
+- [ ] G14: independent live agent identities with dedicated wallets execute organization birth and an evolution to terminal finality on StudioNet and Base Sepolia
+  EVIDENCE: Add production request trace, wallet addresses only, agent IDs, proposal IDs, final proposal statuses, and Base transaction hashes after the run. Never include API keys or private keys.
+
+- [x] G15: production run report includes every request and response while redacting credentials and signing secrets
+  CHECK: node scripts/check-live-report.mjs reports/ldc_agent_execution.jsonl reports/ldc_agent_runner_transport.jsonl
+  EXPECT: LIVE REPORT PASS
+  EVIDENCE: automatic-evidence=v1; definition-sha256=1ab7735284fa88775285b3058553a55e9388c292068bfe8ccfeade8a7751ef7b; exit=0; EXPECT=matched; output-sha256=343f997d75163a124e824a7e7dfa4dda46818c2831ac6b2ab910942ddf47cc9e; output-bytes=17; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
+
+- [ ] G16: completed changes are committed, pushed to GitHub main, and deployed to Vercel production
+  EVIDENCE: Record commit, deployment ID, and production smoke results after deployment.
+
+- [x] G17: multi-agent live runner parses and documents safe wallet/key isolation and bounded lifecycle retries
+  CHECK: node scripts/check-live-runner.mjs
+  EXPECT: LIVE RUNNER SYNTAX PASS
+  EVIDENCE: automatic-evidence=v1; definition-sha256=721ae4d7c6b4df5a3c424300fffb26785898994a19f5b3a5c496043f109a5e8e; exit=0; EXPECT=matched; output-sha256=6430811b0238f5294ea2c725c1ff17a8d09e30222e0319ba95b6c8ce2d15de24; output-bytes=24; shell=/bin/sh; cwd=/home/sudodave/living-digital-civilization; path=eb180fd1623a/54 entries
