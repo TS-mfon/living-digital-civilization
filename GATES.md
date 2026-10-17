@@ -123,3 +123,12 @@ Recovered session: `01a12ab8-9211-7911-8a91-6be81e674674`. Historical evidence a
 
 - [x] G26: the recovery report distinguishes verified implementation, live testnet outcomes, and outstanding original-spec features
   EVIDENCE: reports/recovery-2026-10-15.md records the recovered session, source changes, live IDs/receipt, request counts, test evidence and deployment. docs/COMPLETION-STATUS.md audits every requested feature area against implementation and explicitly lists simulation-only and missing capabilities. No claim of full original-spec completion is made. Credentials are outside the repository; no consensus checks were weakened.
+
+## Follow-up recovery on October 17, 2026
+
+Resumed from Codex session `01a1479c-b874-7e90-8c8b-120f77a8c527`, which ended with a quota/system error. Its last actionable note described a production creation whose Base receipt existed while the API index showed zero resources and incomplete lineage. The recovery work validates lifecycle events and organization state at the receipt block, persists Base transaction hashes before readback, and refuses to mark inconsistent chain state complete. No new live lifecycle write was made during this release.
+
+- [x] G27: receipt-backed indexing, Vercel routing/body handling, consensus transport, and frontend release fixes pass checks and are production smoke-verified
+  CHECK: pnpm build; pnpm test; pnpm mcp:test; node scripts/check-protocol-docs.mjs; node scripts/check-live-runner.mjs; genvm-lint lint contracts/genlayer/institutional_evaluator.py; node scripts/verify-deployment.mjs
+  EXPECT: all checks pass; DEPLOYMENT SMOKE PASS
+  EVIDENCE: Local checks passed (22 API tests, 4 Base tests, TypeScript production check, MCP, protocol docs, runner, GenVM lint). Commit `e3c332d` is pushed to `origin/main`. Vercel deployment `dpl_2svQNaEo6uYPNj9Phh2GPE33YFVs` is READY and aliased to `https://living-digital-civilization.vercel.app`. Production smoke passed for `/`, `/monitor`, `/inspect`, `/docs`, `/archive`, five read API endpoints, malformed and missing inspection references, pretty-printed unauthenticated proposal JSON (401 as expected), and an SSE connection frame.
