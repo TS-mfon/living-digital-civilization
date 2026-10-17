@@ -24,6 +24,15 @@ for (const [reference, status, error] of [['invalid', 400, 'invalid_request'], [
   assert.equal((await response.json()).error, error, path);
   console.log(`INSPECT PASS ${path}`);
 }
+const spacedJson = await fetch(`${origin}/v1/proposals`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ action: 'create', allocation: -1 }, null, 2),
+  signal: AbortSignal.timeout(30_000),
+});
+assert.equal(spacedJson.status, 401, 'pretty-printed JSON should reach API authentication');
+assert.equal((await spacedJson.json()).error, 'unauthorized');
+console.log('JSON BODY PASS /v1/proposals');
 const controller = new AbortController();
 const timer = setTimeout(() => controller.abort(), 30_000);
 let reader;

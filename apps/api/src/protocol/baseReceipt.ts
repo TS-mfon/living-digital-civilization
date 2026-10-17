@@ -24,13 +24,20 @@ export type BaseResult = {
 
 type RegistryReader = Pick<PublicClient, 'readContract'>;
 type Receipt = Pick<TransactionReceipt, 'status' | 'to' | 'transactionHash' | 'blockNumber' | 'logs'>;
+type RegistryOrganization = {
+  id: Hex; familyId: Hex; parentId: Hex; previousVersionId: Hex; instance: Address;
+  generation: number; version: number; resourceUnits: bigint; status: number;
+};
 
 function requireMatch(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
 export async function readRegistryOrganization(client: RegistryReader, address: Address, id: Hex, blockNumber: bigint) {
-  const record = await client.readContract({ address, abi: registryAbi, functionName: 'getOrganization', args: [id], blockNumber });
+  // Keep the call boundary explicit. Vercel's function bundler resolves this
+  // parsed ABI as a broad `any` ABI and otherwise selects an incompatible
+  // viem overload for historical block reads.
+  const record = await client.readContract({ address, abi: registryAbi, functionName: 'getOrganization', args: [id], blockNumber } as any) as RegistryOrganization;
   requireMatch(record.id.toLowerCase() === id.toLowerCase() && record.instance !== zeroAddress && record.familyId !== zeroHash && record.version > 0,
     'Base registry record is missing or invalid at the confirmed block');
   requireMatch(record.resourceUnits <= BigInt(Number.MAX_SAFE_INTEGER) && record.status <= 2,
