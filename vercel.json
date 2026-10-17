@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @ldc/web build",
+  "buildCommand": "pnpm build && pnpm --filter @ldc/api test && pnpm mcp:test && node scripts/check-protocol-docs.mjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "apps/web/dist",
   "rewrites": [

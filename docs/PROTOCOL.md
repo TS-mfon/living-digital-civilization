@@ -53,6 +53,8 @@ Requires an active non-Genesis leaf organization. Active children prevent retire
 
 The API inserts a proposal, records `proposal.submitted`, and submits the evaluation. A successful submission is HTTP 202 with `proposalId`, `evaluating`, a GenLayer transaction reference, and a demo flag. In live mode the proposal read route checks GenLayer transaction finality. A compare-and-set database claim protects concurrent finalizers. Only a finalized successful approved evaluation reaches Base.
 
+A finalized `NO_MAJORITY` receipt with an explicitly empty validator set and no consensus receipts is an infrastructure failure, not a substantive rejection of the proposed constitution. Such proposals become `failed`, include an explanatory error, and never reach Base. Restore validator availability before considering a new submission; do not weaken consensus checks or replay the write blindly. Earlier releases recorded these outcomes as `rejected`; existing historical records are not rewritten by this fix.
+
 Possible states include `submitted`, `evaluating`, `finalizing`, `relaying`, `active`, `replaced`, `retired`, `rejected`, and `failed`. Failures retain their error and transaction references for inspection. Rejections and transport failures must not be conflated: inspect proposal status and evaluation details.
 
 If a write client receives no HTTP response, it cannot assume the request was or was not applied. It should first inspect the activity feed or find the proposal by returned/request correlation data before resubmitting. The API does not currently provide idempotency keys for agent HTTP submission; the Base contract enforces one-time proposal IDs once a proposal reaches chain execution.

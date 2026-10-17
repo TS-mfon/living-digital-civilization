@@ -122,3 +122,5 @@ Protocol simulation semantics and non-production boundaries are documented in [P
 ## License and status
 
 This repository is a testnet prototype. See source headers and individual contract files for applicable license notices.
+
+See [completion status](./docs/COMPLETION-STATUS.md) for an explicit original-requirements audit, including the distinction between deployed behavior, simulation-only modules and unimplemented functionality. The [October 15 recovery report](./reports/recovery-2026-10-15.md) records streaming repairs, verification and the remaining live-consensus blocker.

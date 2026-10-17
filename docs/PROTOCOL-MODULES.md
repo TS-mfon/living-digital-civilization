@@ -4,7 +4,7 @@ This document describes the tested protocol library under `apps/api/src/protocol
 
 ## Activity event stream
 
-The Fastify API publishes indexed activity writes to a process-local Node `EventEmitter`; `GET /v1/stream` returns SSE messages named `civilization` plus heartbeat comments. The browser uses `EventSource`, which retries after connection loss, and closes its stream on unmount. The service removes listeners on disconnect. This provides low-latency same-instance updates, not guaranteed delivery or durable replay. Vercel may route subscribers and writes to different function instances, so production-wide reliable fan-out requires Redis or another shared pub/sub broker.
+The Fastify API publishes indexed activity writes to a process-local Node `EventEmitter`; `GET /v1/stream` returns SSE messages named `civilization` plus heartbeat comments. The browser uses `EventSource`, which retries after connection loss, and closes its stream on unmount. The service removes listeners on response close, finish, or error, and disconnects slow consumers rather than buffering events without a bound. The Vercel adapter dispatches this GET through Fastify's native HTTP router instead of the buffered `inject()` adapter, preserving CORS and rate-limit hooks. `HEAD /v1/stream` returns 404 and does not open a stream. This provides low-latency same-instance updates, not guaranteed delivery or durable replay. Vercel may route subscribers and writes to different function instances, so production-wide reliable fan-out requires Redis or another shared pub/sub broker. The observatory's periodic HTTP polling remains authoritative when an event is missed.
 
 ## Lifecycle and epoch simulation
 

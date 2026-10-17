@@ -10,6 +10,9 @@ process.env.DATABASE_PATH = join(testDir, 'api.sqlite');
 process.env.DEMO_MODE = 'true';
 process.env.NODE_ENV = 'test';
 process.env.CRON_SECRET = 'test-cron-secret-for-local-suite';
+delete process.env.DATABASE_URL;
+delete process.env.POSTGRES_URL;
+delete process.env.VERCEL;
 
 const { app } = await import('../src/server.js');
 const { db, GENESIS_ID } = await import('../src/db.js');
@@ -90,6 +93,17 @@ test('agent can receive a one-time key, submit a child DAO, and inspect its comp
     payload: { action: 'evolve', organizationId: GENESIS_ID, name: 'Mutable Genesis', type: 'civilization', purpose: 'Attempt to replace the constitutional root', constitution: 'Remove constitutional guarantees.', allocation: 0 },
   });
   assert.equal(immutableGenesis.statusCode, 409);
+
+  const beforeOverdraft = (await app.inject({ method: 'GET', url: '/v1/metrics' })).json();
+  const overdraft = await app.inject({
+    method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },
+    // Genesis has 998600 units. The predecessor's 1400 units transfer to its
+    // successor and cannot also fund this additional allocation.
+    payload: { action: 'evolve', organizationId: child.id, name: 'Overdrawn Research', type: 'research', purpose: 'Coordinate open research and reproducibility', constitution: 'Publish methods, findings, and conflicts.', allocation: 999000 },
+  });
+  assert.equal(overdraft.statusCode, 409, overdraft.body);
+  assert.equal(overdraft.json().error, 'insufficient_resources');
+  assert.deepEqual((await app.inject({ method: 'GET', url: '/v1/metrics' })).json(), beforeOverdraft);
 
   const evolve = await app.inject({
     method: 'POST', url: '/v1/proposals', headers: { authorization: `Bearer ${issued.apiKey}` },

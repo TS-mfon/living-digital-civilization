@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
       - uses: pnpm/action-setup@v4
         with:
           version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
       - run: pnpm install --frozen-lockfile
       - name: Compile TypeScript and frontend
@@ -27,12 +27,12 @@ jobs:
         run: pnpm test
       - name: MCP protocol checks
         run: pnpm mcp:test
-      - name: GenLayer source lint (when CLI is installed)
-        run: |
-          if command -v genvm-lint >/dev/null 2>&1; then
-            genvm-lint lint contracts/genlayer/institutional_evaluator.py
-          else
-            echo "genvm-lint is not installed on this runner; source lint is covered by the release gate."
-          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install GenLayer source linter
+        run: pip install genvm-linter==0.11.0
+      - name: GenLayer source lint
+        run: genvm-lint lint contracts/genlayer/institutional_evaluator.py
       - name: Verify CI definition
         run: node scripts/check-ci-workflow.mjs

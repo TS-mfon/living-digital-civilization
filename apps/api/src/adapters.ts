@@ -1,18 +1,11 @@
-import { concatHex, createPublicClient, createWalletClient, http, keccak256, parseEventLogs, stringToHex, type Address, type Hex } from 'viem';
+import { concatHex, createPublicClient, createWalletClient, http, keccak256, stringToHex, type Address, type Hex } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { ProposalRow } from './domain.js';
+import { evaluationConsensus } from './protocol/evaluationConsensus.js';
+import { baseResultFromReceipt, registryAbi, type BaseResult } from './protocol/baseReceipt.js';
 
 const demoMode = process.env.DEMO_MODE === 'true';
-const registryAbi = [
-  { type: 'function', name: 'createOrganization', stateMutability: 'nonpayable', inputs: [{ name: 'proposalId', type: 'bytes32' }, { name: 'parentId', type: 'bytes32' }, { name: 'name', type: 'string' }, { name: 'organizationType', type: 'string' }, { name: 'purpose', type: 'string' }, { name: 'constitutionHash', type: 'bytes32' }, { name: 'allocation', type: 'uint256' }], outputs: [{ name: 'id', type: 'bytes32' }, { name: 'instance', type: 'address' }] },
-  { type: 'function', name: 'evolveOrganization', stateMutability: 'nonpayable', inputs: [{ name: 'proposalId', type: 'bytes32' }, { name: 'previousId', type: 'bytes32' }, { name: 'name', type: 'string' }, { name: 'organizationType', type: 'string' }, { name: 'purpose', type: 'string' }, { name: 'constitutionHash', type: 'bytes32' }, { name: 'additionalAllocation', type: 'uint256' }], outputs: [{ name: 'id', type: 'bytes32' }, { name: 'instance', type: 'address' }] },
-  { type: 'function', name: 'retireOrganization', stateMutability: 'nonpayable', inputs: [{ name: 'proposalId', type: 'bytes32' }, { name: 'organizationId', type: 'bytes32' }], outputs: [] },
-  { type: 'function', name: 'getOrganization', stateMutability: 'view', inputs: [{ name: 'id', type: 'bytes32' }], outputs: [{ name: '', type: 'tuple', components: [{ name: 'id', type: 'bytes32' }, { name: 'familyId', type: 'bytes32' }, { name: 'parentId', type: 'bytes32' }, { name: 'previousVersionId', type: 'bytes32' }, { name: 'instance', type: 'address' }, { name: 'generation', type: 'uint32' }, { name: 'version', type: 'uint32' }, { name: 'resourceUnits', type: 'uint256' }, { name: 'status', type: 'uint8' }] }] },
-  { type: 'event', name: 'OrganizationCreated', anonymous: false, inputs: [{ indexed: true, name: 'proposalId', type: 'bytes32' }, { indexed: true, name: 'organizationId', type: 'bytes32' }, { indexed: true, name: 'parentId', type: 'bytes32' }, { indexed: false, name: 'instance', type: 'address' }, { indexed: false, name: 'constitutionHash', type: 'bytes32' }, { indexed: false, name: 'resourceUnits', type: 'uint256' }] },
-  { type: 'event', name: 'OrganizationEvolved', anonymous: false, inputs: [{ indexed: true, name: 'proposalId', type: 'bytes32' }, { indexed: true, name: 'previousId', type: 'bytes32' }, { indexed: true, name: 'organizationId', type: 'bytes32' }, { indexed: false, name: 'instance', type: 'address' }, { indexed: false, name: 'constitutionHash', type: 'bytes32' }, { indexed: false, name: 'version', type: 'uint32' }] },
-  { type: 'event', name: 'OrganizationRetired', anonymous: false, inputs: [{ indexed: true, name: 'proposalId', type: 'bytes32' }, { indexed: true, name: 'organizationId', type: 'bytes32' }, { indexed: false, name: 'returnedResourceUnits', type: 'uint256' }] },
-] as const;
 
 export const GENESIS_ID = keccak256(stringToHex('LDC_GENESIS'));
 const statusName = ['active', 'replaced', 'retired'] as const;
@@ -64,12 +57,9 @@ export async function submitEvaluation(proposal: ProposalRow): Promise<string> {
   const client = await getGenLayer();
   const address = genlayerAddress!;
   const args = [proposal.id, proposal.action, proposal.organizationId ?? '', proposal.parentId ?? '', proposal.name, proposal.type, proposal.purpose, proposal.constitution, proposal.allocation];
-  if ((process.env.GENLAYER_NETWORK ?? 'studionet') === 'studionet') {
-    // StudioNet is gasless and currently does not expose sim_getFeeConfig.
-    return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, fees: { feeValue: 0n } });
-  }
-  const fees = await client.estimateTransactionFeesForWrite({ account: genlayerAccount, address, functionName: 'evaluate', args });
-  return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, fees });
+  // genlayer-js is pinned to 1.1.8 for StudioNet's five-argument addTransaction
+  // ABI. The 2.0 fee envelope finalizes there without executing the evaluator.
+  return await client.writeContract({ account: genlayerAccount, address, functionName: 'evaluate', args, value: 0n });
 }
 
 export async function finalizedEvaluation(proposal: ProposalRow): Promise<{ approved: boolean; rationale: string; constitution: string } | null> {
@@ -79,21 +69,17 @@ export async function finalizedEvaluation(proposal: ProposalRow): Promise<{ appr
   }
   const client = await getGenLayer();
   const transaction = await client.getTransaction({ hash: proposal.genlayerTx as `0x${string}` });
-  if (transaction.statusName !== 'FINALIZED') return null;
-  if (transaction.result_name === 'NO_MAJORITY' || transaction.result_name === 'MAJORITY_DISAGREE') {
+  const consensus = evaluationConsensus(transaction);
+  if (consensus === 'pending') return null;
+  if (consensus === 'rejected') {
     return { approved: false, rationale: 'GenLayer validators did not reach an approving consensus for this proposal.', constitution: proposal.constitution };
-  }
-  const leaderResult = transaction.consensus_data?.leader_receipt?.[0]?.execution_result;
-  if (transaction.result_name !== 'MAJORITY_AGREE' || leaderResult !== 'SUCCESS') {
-    throw new Error(`GenLayer transaction completed unsuccessfully (${transaction.result_name ?? transaction.statusName}; execution ${leaderResult ?? 'unknown'})`);
   }
   const result = await client.readContract({ address: genlayerAddress!, functionName: 'get_evaluation', args: [proposal.id] });
   if (!result || typeof result !== 'object' || !('approved' in result)) throw new Error('Finalized GenLayer transaction has no readable evaluation');
   return result as { approved: boolean; rationale: string; constitution: string };
 }
 
-export type BaseResult = { txHash: string; id?: string; familyId?: string; instance?: string; generation?: number; version?: number; resourceUnits?: number };
-export async function relayToBase(proposal: ProposalRow, evaluation: { constitution: string }): Promise<BaseResult> {
+export async function relayToBase(proposal: ProposalRow, evaluation: { constitution: string }, onSubmitted: (hash: string) => Promise<void>): Promise<BaseResult> {
   if (demoMode) {
     const id = keccak256(stringToHex(`${proposal.action}:${proposal.id}`));
     return { txHash: `demo-base:${proposal.id}`, id };
@@ -112,17 +98,11 @@ export async function relayToBase(proposal: ProposalRow, evaluation: { constitut
     functionName = 'retireOrganization';
     args = [proposalHash(proposal.id), proposal.organizationId as Hex];
   }
-  const hash = await walletBase!.writeContract({ account, address, chain: baseSepolia, abi: registryAbi, functionName, args: args as any });
+  const hash = proposal.baseTx ?? await walletBase!.writeContract({ account, address, chain: baseSepolia, abi: registryAbi, functionName, args: args as any });
+  // Keep the transaction available for recovery even if receipt/state reads fail.
+  await onSubmitted(hash);
   const receipt = await publicBase!.waitForTransactionReceipt({ hash });
-  if (receipt.status !== 'success') throw new Error('Base registry transaction reverted');
-  if (proposal.action === 'retire') return { txHash: hash };
-  const eventName = proposal.action === 'create' ? 'OrganizationCreated' : 'OrganizationEvolved';
-  const logs = parseEventLogs({ abi: registryAbi, logs: receipt.logs, eventName, strict: false }) as any[];
-  const event = logs[0]?.args;
-  if (!event) throw new Error(`Base transaction finalized without ${eventName} event`);
-  const id = event.organizationId as Hex;
-  const record = await publicBase!.readContract({ address, abi: registryAbi, functionName: 'getOrganization', args: [id] }) as any;
-  return { txHash: hash, id, familyId: record.familyId, instance: event.instance, generation: Number(record.generation), version: Number(record.version), resourceUnits: Number(record.resourceUnits) };
+  return baseResultFromReceipt(publicBase, address, proposal, constitutionHash(evaluation.constitution), receipt);
 }
 
 export async function adapterHealth() {

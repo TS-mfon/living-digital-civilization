@@ -61,7 +61,7 @@ async function completeLifecycle(proposalId: string): Promise<boolean> {
       await updateProposal(proposalId, { status: 'rejected' });
       return true;
     }
-    const base = await relayToBase(proposal, evaluation);
+    const base = await relayToBase(proposal, evaluation, (hash) => updateProposal(proposalId, { baseTx: hash }));
     await updateProposal(proposalId, { baseTx: base.txHash });
     const createdAt = new Date().toISOString();
     if (proposal.action === 'create' || proposal.action === 'evolve') {
@@ -70,10 +70,10 @@ async function completeLifecycle(proposalId: string): Promise<boolean> {
       const parent = parentId ? await getOrganization(parentId) : undefined;
       const id = base.id ?? keccak256(stringToHex(`${proposal.action}:${proposal.id}`));
       const familyId = base.familyId ?? predecessor?.familyId ?? familyHash(id as `0x${string}`);
-      if (proposal.action === 'create' && parent) await setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
+      if (proposal.action === 'create' && parent) await setResourceUnits(parent.id, base.parentResourceUnits ?? Math.max(0, parent.resourceUnits - proposal.allocation));
       if (proposal.action === 'evolve' && predecessor) {
         await setOrganizationStatus(predecessor.id, 'replaced');
-        if (parent) await setResourceUnits(parent.id, Math.max(0, parent.resourceUnits - proposal.allocation));
+        if (parent) await setResourceUnits(parent.id, base.parentResourceUnits ?? Math.max(0, parent.resourceUnits - proposal.allocation));
       }
       const org: OrganizationRow = {
         id, familyId, parentId, previousId: predecessor?.id ?? null,
@@ -88,7 +88,7 @@ async function completeLifecycle(proposalId: string): Promise<boolean> {
       await recordActivity(proposal.action === 'evolve' ? 'organization.evolved' : 'organization.created', { organization: org, baseTx: base.txHash, demo: isDemoMode() }, proposalId, org.id);
     } else {
       const org = await getOrganization(proposal.organizationId!);
-      if (org?.parentId) await setResourceUnits(org.parentId, ((await getOrganization(org.parentId))?.resourceUnits ?? 0) + org.resourceUnits);
+      if (org?.parentId) await setResourceUnits(org.parentId, base.parentResourceUnits ?? ((await getOrganization(org.parentId))?.resourceUnits ?? 0) + org.resourceUnits);
       await setOrganizationStatus(proposal.organizationId!, 'retired', 0);
       await updateProposal(proposalId, { status: 'retired' });
       await recordActivity('organization.retired', { organizationId: proposal.organizationId, baseTx: base.txHash, demo: isDemoMode() }, proposalId, proposal.organizationId);
@@ -168,7 +168,7 @@ app.post('/v1/proposals', async (request, reply) => {
   if (input.action === 'evolve' && input.organizationId === GENESIS_ID) return reply.code(409).send({ error: 'immutable_genesis', message: 'The Genesis organization cannot be evolved.' });
   if (input.action === 'retire' && (await getOrganizations()).some((org) => org.parentId === source.id && org.status === 'active')) return reply.code(409).send({ error: 'active_children', message: 'Retire or evolve active child institutions before retiring their parent.' });
   if (input.action === 'create' && input.allocation! > source.resourceUnits) return reply.code(409).send({ error: 'insufficient_resources', available: source.resourceUnits });
-  if (input.action === 'evolve' && input.allocation! > ((await getOrganization(source.parentId ?? ''))?.resourceUnits ?? 0) + source.resourceUnits) return reply.code(409).send({ error: 'insufficient_resources', message: 'The parent and current version do not have enough resource units.' });
+  if (input.action === 'evolve' && input.allocation! > ((await getOrganization(source.parentId ?? ''))?.resourceUnits ?? 0)) return reply.code(409).send({ error: 'insufficient_resources', message: 'The parent does not have enough resource units for the additional allocation.' });
   if (input.action === 'retire' && input.organizationId === GENESIS_ID) return reply.code(409).send({ error: 'immutable_genesis', message: 'The Genesis organization cannot be retired.' });
   const target = input.action === 'retire' ? source : undefined;
   const row: ProposalRow = {
@@ -230,14 +230,31 @@ app.get('/v1/activity', async (request, reply) => {
   if (!parsed.success) return reply.code(400).send({ error: 'invalid_request', details: parsed.error.flatten() });
   return { events: await getActivity(parsed.data.limit), demo: isDemoMode() };
 });
-app.get('/v1/stream', async (request, reply) => {
+app.get('/v1/stream', { exposeHeadRoute: false }, async (_request, reply) => {
   reply.hijack();
   const response = reply.raw;
+  if (response.destroyed || response.writableEnded) return;
+  for (const [name, value] of Object.entries(reply.getHeaders())) {
+    if (value !== undefined) response.setHeader(name, value);
+  }
   response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
-  response.write(': connected\n\n');
-  const unsubscribe = civilizationEvents.subscribe((event) => response.write(`event: civilization\ndata: ${JSON.stringify(event)}\n\n`));
-  const heartbeat = setInterval(() => response.write(': ping\n\n'), 20_000);
-  request.raw.on('close', () => { clearInterval(heartbeat); unsubscribe(); response.end(); });
+  const write = (frame: string) => {
+    if (!response.destroyed && !response.writableEnded && !response.write(frame)) response.end();
+  };
+  const unsubscribe = civilizationEvents.subscribe((event) => write(`event: civilization\ndata: ${JSON.stringify(event)}\n\n`));
+  const heartbeat = setInterval(() => write(': ping\n\n'), 20_000);
+  heartbeat.unref();
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+    response.off('close', cleanup);
+    response.off('finish', cleanup);
+    response.off('error', cleanup);
+  };
+  response.once('close', cleanup);
+  response.once('finish', cleanup);
+  response.once('error', cleanup);
+  write(': connected\n\n');
 });
 app.get('/v1/metrics', async () => {
   const [metrics, organizations] = await Promise.all([civilizationMetrics(), getOrganizations()]);
